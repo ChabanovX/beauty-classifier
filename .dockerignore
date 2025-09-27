@@ -1,0 +1,7 @@
+dataset/
+.git
+.github
+.dvc
+tests/
+README.md
+Makefile

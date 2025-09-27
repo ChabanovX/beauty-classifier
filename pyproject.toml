@@ -1,0 +1,29 @@
+[project]
+name = "pmdld-ass01-deployment"
+version = "0.1.0"
+description = "PMLDL Assignment 1 - Deployment"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.116.1",
+    "pandas>=2.3.2",
+    "pydantic>=2.11.9",
+    "pydantic-settings>=2.10.1",
+    "python-multipart>=0.0.20",
+    "torch>=2.8.0",
+    "torchvision>=0.23.0",
+    "uvicorn>=0.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "dvc>=3.63.0",
+    "black>=25.1.0",
+    "httpx>=0.28.1",
+    "ipykernel>=6.30.1",
+    "matplotlib>=3.10.6",
+    "seaborn>=0.13.2",
+    "dvc-gdrive>=3.0.1",
+    "dvclive>=3.48.5",
+    "torchmetrics>=1.8.2",
+]
