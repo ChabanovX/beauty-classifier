@@ -27,7 +27,7 @@ This repo contains a fastapi backend with ml models for the project.
 
 3. Run `make compose-up` to start the backend
 
-To run locally, download dependencies `uv sync`, and start the app `uv run python -m api`
+To run locally, download dependencies locally `uv sync` as well, and start the app `uv run python -m api`
 
 ## Testing
 
