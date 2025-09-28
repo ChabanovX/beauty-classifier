@@ -1,34 +1,61 @@
-# PMLDL Project Backend by Okurki Team
+# Facial Analysis Mobile App - PMLDL Project
 
-This repo contains a fastapi backend with ml models for the project.
+## Project Overview
 
-# Repo Structure
+A mobile application that uses computer vision to analyze facial features for entertainment purposes. The app provides two main functionalities:
+- **Facial Attractiveness Score**: Estimates an attractiveness rating based on facial features
+- **Celebrity Look-alike Finder**: Identifies which famous celebrity the user resembles most
+
+## Technical Architecture
+
+### Core ML Models
+- **Attractiveness Classifier**: ResNet-50 CNN fine-tuned on SCUT-FBP5500 dataset
+- **Look-alike Classifier**: Inception Resnet V1 pretrained on VGGFace2, fine-tuned on Open Famous People Faces dataset
+
+### Infrastructure Stack
+- **Backend**: FastAPI with PostgreSQL
+- **Frontend**: Flutter mobile application
+- **Deployment**: Docker containerization
+
+## Datasets
+
+### SCUT-FBP5500 Dataset
+- **Size**: 5,500 frontal faces (350×350px)
+- **Diversity**: 2,000 Asian females, 2,000 Asian males, 750 Caucasian females, 750 Caucasian males
+- **Labels**: Attractiveness scores (1.0-5.0) from human ratings
+- **Split**: 60% training, 40% test sets
+
+### Open Famous People Faces Dataset
+- **Classes**: 258 celebrities with ≥5 images per class
+- **Quality**: Varied image sizes and quality levels
+- **Alignment**: Face-aligned using eye position and landmarks
+- **Use Case**: Face re-identification and recognition
+
+## Repository Structure
 
 ```
-├── api -- FastAPI app
-│   ├── models/ -- ML models in pytorch
-│   ├── services/
-│   ├── v1/
-│   └── __main__.py -- FastAPI app entry point
-├── dataset -- Data-related files for dataset analysis and the dataset itself
-│    ├── data/ -- Dataset files
-│    └── analyze.ipynb -- Jupyter notebook for data analysis
-├── models -- Trained ML models in .pt format
-├── tests/
+├── api/ # FastAPI application
+│ ├── models/ # PyTorch ML models
+│ ├── services/
+│ ├── v1/
+│ └── __main__.py # FastAPI entry point
+├── datasets/ # Data files
+│ └── scut/ # SCUT-FBP5500 dataset
+├── models/ # Trained .pt model files
+└── tests/ # Test suite
 ```
+## Development Setup
 
-# Development
+### Prerequisites
+- [make](https://www.gnu.org/software/make/), [uv](https://www.uvproject.xyz/), [dvc](https://dvc.org/), [docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/install/)
 
-## Setup
+### Quick Start
+1. **Pull data**: `make pull-data` (downloads datasets and models)
+2. **Start services**: `make compose-up` (launches backend via Docker)
+3. **Local development**: `uv sync` then `uv run python -m api`
 
-1. Install [make](https://www.gnu.org/software/make/), [uv](https://www.uvproject.xyz/), [dvc](https://dvc.org/), [docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/install/)
+### Testing
+Run `make test` to execute test suite
 
-2. Run `make pull-data` to pull the dataset and models from the remote repository
-
-3. Run `make compose-up` to start the backend
-
-To run locally, download dependencies locally `uv sync` as well, and start the app `uv run python -m api`
-
-## Testing
-
-Run `make test` to run the tests
+## Project Timeline
+5 two-week sprints concluding November 9, 2025, focusing on iterative development of ML models, mobile integration, and deployment infrastructure.
