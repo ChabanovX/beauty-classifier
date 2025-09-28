@@ -1,0 +1,21 @@
+stages:
+  train:
+    cmd: make train-attractiveness
+    deps:
+      - api/models/attractiveness/model.py
+      - datasets/scut/
+    outs:
+      - models/attractiveness_classifier.pt
+
+  evaluate:
+    cmd: make eval-attractiveness
+    deps:
+      - api/models/attractiveness/model.py
+      - models/attractiveness_classifier.pt
+      - dataset/scut/
+
+  deploy:
+    cmd: make compose-up
+    deps:
+      - api/
+      - docker-compose.yaml

@@ -26,4 +26,5 @@ dev = [
     "dvclive>=3.48.5",
     "torchmetrics>=1.8.2",
     "dvc>=3.63.0",
+    "mlflow>=3.4.0",
 ]

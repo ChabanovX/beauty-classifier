@@ -34,3 +34,6 @@ __pypackages__/
 # Custom
 
 models/*.pt
+
+.python-version
+uv.lock
