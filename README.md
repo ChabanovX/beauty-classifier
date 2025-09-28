@@ -47,7 +47,7 @@ A mobile application that uses computer vision to analyze facial features for en
 ## Development Setup
 
 ### Prerequisites
-- [make](https://www.gnu.org/software/make/), [uv](https://www.uvproject.xyz/), [dvc](https://dvc.org/), [docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/install/)
+- [make](https://www.gnu.org/software/make/), [uv](https://www.uvproject.xyz/), [docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/install/)
 
 ### Quick Start
 1. **Pull data**: `make pull-data` (downloads datasets and models)
