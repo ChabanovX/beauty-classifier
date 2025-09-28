@@ -1,0 +1,3 @@
+Processed labels: `all.txt`, `train.txt`, `test.txt`
+
+Pull them by running `make pull-data`

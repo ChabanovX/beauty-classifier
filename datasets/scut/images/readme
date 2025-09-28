@@ -1,0 +1,3 @@
+Scut images in `.jpg` format.
+
+Pull them by running `make pull-data`
