@@ -1,0 +1,5 @@
+outs:
+- md5: de219d4daf599f26ca36f12f7f427925
+  size: 98550731
+  hash: md5
+  path: attractiveness_classifier.pt
