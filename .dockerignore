@@ -5,3 +5,4 @@ dataset/
 tests/
 README.md
 Makefile
+.venv
