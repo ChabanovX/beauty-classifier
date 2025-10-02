@@ -10,9 +10,11 @@ dependencies = [
     "pydantic>=2.11.9",
     "pydantic-settings>=2.10.1",
     "python-multipart>=0.0.20",
-    "torch>=2.8.0",
-    "torchvision>=0.23.0",
     "uvicorn>=0.35.0",
+    "torch>=2.1.2; platform_system == 'Windows'",
+    "torchvision>=0.16.2; platform_system == 'Windows'",
+    "torch @ https://download.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp311-cp311-linux_x86_64.whl; platform_system != 'Windows'",
+    "torchvision @ https://download.pytorch.org/whl/cpu/torchvision-0.16.2%2Bcpu-cp311-cp311-linux_x86_64.whl; platform_system == 'Windows' and platform_machine == 'AMD64'",
 ]
 
 [dependency-groups]
