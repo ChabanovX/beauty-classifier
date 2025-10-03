@@ -9,9 +9,10 @@ from PIL import Image
 from ..base_model import ModelBase
 from .dataset import get_data_loaders
 
+
 class AttractivenessModel(ModelBase):
     _name: str = "attractiveness_classifier"
-    
+
     def __init__(self):
         super().__init__()
         self._transform = transforms.Compose(
@@ -45,10 +46,10 @@ class AttractivenessModel(ModelBase):
         criterion: nn.Module = nn.MSELoss(),
         optimizer: torch.optim.Optimizer | None = None,
         scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
-    ) -> None:        
+    ) -> None:
         if not self._model:
             raise ValueError("Model not initialized")
-        
+
         # Default components if not provided
         if optimizer is None:
             optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
@@ -56,74 +57,75 @@ class AttractivenessModel(ModelBase):
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode="min", factor=0.1, patience=5
             )
-        
+
         train_loader, val_loader = get_data_loaders()
-        
+
         best_loss = float("inf")
         for epoch in range(epochs):
-            print(f"Epoch {epoch+1}/{epochs}")
+            print(f"Epoch {epoch + 1}/{epochs}")
             print("-" * 10)
-            
+
             # Training and validation phases
             for phase, dataloader in [("train", train_loader), ("val", val_loader)]:
                 if phase == "train":
                     self._model.train()
                 else:
                     self._model.eval()
-                
+
                 running_loss = 0.0
                 running_mae = 0.0
-                
+
                 for inputs, labels in dataloader:
                     inputs = inputs.to(self._device)
                     labels = labels.to(self._device).view(-1, 1)
-                    
+
                     optimizer.zero_grad()
-                    
+
                     with torch.set_grad_enabled(phase == "train"):
                         outputs = self._model(inputs)
                         loss = criterion(outputs, labels)
                         mae = nn.L1Loss()(outputs, labels)
-                        
+
                         if phase == "train":
                             loss.backward()
                             optimizer.step()
-                    
+
                     running_loss += loss.item() * inputs.size(0)
                     running_mae += mae.item() * inputs.size(0)
-                
+
                 epoch_loss = running_loss / len(dataloader.dataset)
                 epoch_mae = running_mae / len(dataloader.dataset)
-                
-                
-                print(f"{phase.capitalize()} Loss: {epoch_loss:.4f} MAE: {epoch_mae:.4f}")
-                
+
+                print(
+                    f"{phase.capitalize()} Loss: {epoch_loss:.4f} MAE: {epoch_mae:.4f}"
+                )
+
                 # Save best model
                 if phase == "val" and epoch_loss < best_loss:
                     best_loss = epoch_loss
                     self.save()
                     print(f"New best model saved with loss: {best_loss:.4f}")
-            
+
             # Scheduler step
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(epoch_loss)
             else:
                 scheduler.step()
-            
+
             print()
-        
+
         print(f"Training complete. Best val loss: {best_loss:.4f}")
-    
+
     def predict(self, image: bytes) -> float:
         """
         Predict face attractiveness from image
-        
+
         Args:
             image (bytes): face image as bytes
-            
+
         Raises:
             ValueError: if image is not a valid image
-        
+
         Returns:
             float: predicted attractiveness score [0, 1]
         """
@@ -141,39 +143,37 @@ class AttractivenessModel(ModelBase):
         except Exception as e:
             print(f"Error processing image: {e}")
             raise ValueError(f"Could not process image: {e}")
-    
+
     def evaluate(self) -> tuple[float, float]:
         if not self._model:
             raise ValueError("Model not loaded")
-        
+
         self._model.eval()
         total_mae = 0.0
         total_mse = 0.0
         mae = nn.L1Loss()
         mse = nn.MSELoss()
-        
+
         _, test_loader = get_data_loaders()
         with torch.no_grad():
             for inputs, labels in test_loader:
                 inputs = inputs.to(self._device)
                 labels = labels.to(self._device).view(-1, 1)
-                
+
                 outputs = self._model(inputs)
                 mae_loss = mae(outputs, labels)
                 mse_loss = mse(outputs, labels)
-                
+
                 total_mae += mae_loss.item() * inputs.size(0)
                 total_mse += mse_loss.item() * inputs.size(0)
-        
+
         mae = total_mae / len(test_loader.dataset)
         rmse = (total_mse / len(test_loader.dataset)) ** 0.5
-        
+
         print(f"Test MAE: {mae:.4f}")
         print(f"Test RMSE: {rmse:.4f}")
-        
-        return {
-            "mae": mae,
-            "rmse": rmse
-        }
-    
+
+        return {"mae": mae, "rmse": rmse}
+
+
 attractiveness_model = AttractivenessModel()

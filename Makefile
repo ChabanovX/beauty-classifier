@@ -1,4 +1,4 @@
-ATTRACTIVENESS-MODULE := api.models.attractiveness.model
+ATTRACTIVENESS-MODULE := api.models
 DISABLE-WARNINGS := import warnings; warnings.filterwarnings("ignore")
 
 train-attractiveness:

@@ -10,7 +10,7 @@ A mobile application that uses computer vision to analyze facial features for en
 
 ### Core ML Models
 - **Attractiveness Classifier**: ResNet-50 CNN fine-tuned on SCUT-FBP5500 dataset
-- **Look-alike Classifier**: Inception Resnet V1 pretrained on VGGFace2, fine-tuned on Open Famous People Faces dataset
+- **Look-alike Finder**: Inception Resnet V1 pretrained on VGGFace2, fine-tuned on Open Famous People Faces dataset
 
 ### Infrastructure Stack
 - **Backend**: FastAPI with PostgreSQL

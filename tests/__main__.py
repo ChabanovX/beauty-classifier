@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from api.__main__ import app
-from api.models.attractiveness.model import attractiveness_model
+from api import app
+from api.models import attractiveness_model
 
 client = TestClient(app)
 
@@ -28,6 +28,7 @@ def test_predict_endpoint():
     image_file = ("test.jpg", b"test", "image/jpeg")
     response = client.post("/predict", files={"image_file": image_file})
     response.raise_for_status()
+    assert response.content, "Response is empty"
     assert response.json().get("prediction", None) is not None, "Prediction is None"
     print("Prediction endpoint tested")
 

@@ -1,6 +1,6 @@
 from .config import config
 from .v1.routes import attractiveness_router
-from .models.attractiveness.model import attractiveness_model
+from .models import attractiveness_model
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI

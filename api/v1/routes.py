@@ -15,8 +15,8 @@ async def predict(image_file: UploadFile):
     image_bytes = await image_file.read()
 
     score = AttractivenessService.get_attractiveness(image_bytes)
-    
+
     if not score:
         raise HTTPException(status_code=400, detail="Could not process image")
-    
+
     return AttractivenessPrediction(prediction=score)

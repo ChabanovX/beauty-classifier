@@ -9,9 +9,9 @@ import os
 
 
 class AttractivenessDataset(Dataset):
-    def __init__(self, annotations_file: str, transform=None):
+    def __init__(self, data_file: str, transform=None):
         self.img_labels = pd.read_csv(
-            os.path.join(config.data_path, "labels/processed", annotations_file),
+            os.path.join(config.data_path, "labels/processed", data_file),
         )
         self.transform = transform
 
@@ -23,11 +23,11 @@ class AttractivenessDataset(Dataset):
         label = torch.tensor(
             label, dtype=torch.float32
         )  # Regression target must be float32
-        
+
         img_path = os.path.join(
             config.data_path, "images", self.img_labels.iloc[idx, 0]
         )
-        
+
         with Image.open(img_path) as image:
             if self.transform:
                 image = self.transform(image)
@@ -65,12 +65,10 @@ def get_data_loaders(batch_size=32):
 
     # Create Datasets
     train_dataset = AttractivenessDataset(
-        annotations_file="train.txt", transform=train_transform
+        data_file="train.txt", transform=train_transform
     )
 
-    test_dataset = AttractivenessDataset(
-        annotations_file="test.txt", transform=test_transform
-    )
+    test_dataset = AttractivenessDataset(data_file="test.txt", transform=test_transform)
 
     # Create DataLoaders
     train_loader = DataLoader(
@@ -78,7 +76,6 @@ def get_data_loaders(batch_size=32):
         batch_size=batch_size,
         shuffle=True,  # Crucial for training to shuffle the data
         num_workers=2,  # Number of subprocesses for data loading
-        pin_memory=True,  # Faster data transfer to GPU
     )
 
     test_loader = DataLoader(
@@ -86,7 +83,6 @@ def get_data_loaders(batch_size=32):
         batch_size=batch_size,
         shuffle=False,  # No need to shuffle for testing
         num_workers=2,
-        pin_memory=True,
     )
 
     return train_loader, test_loader
