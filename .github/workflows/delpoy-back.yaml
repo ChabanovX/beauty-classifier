@@ -26,7 +26,7 @@ jobs:
             cd ml-project
             git pull origin main
           else
-            git clone https://github.com/your-username/your-repo.git ml-project
+            git clone https://github.com/sasaSilver/ml-project.git ml-project
             cd ml-project
           fi
           
