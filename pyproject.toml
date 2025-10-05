@@ -1,7 +1,7 @@
 [project]
-name = "pmdld-ass01-deployment"
+name = "ml-project"
 version = "0.1.0"
-description = "PMLDL Assignment 1 - Deployment"
+description = "ML Project for CV, PMLDL, and RL courses"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
