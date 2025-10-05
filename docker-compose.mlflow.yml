@@ -1,7 +1,6 @@
 services:
   mlflow-server:
     image: ghcr.io/mlflow/mlflow
-    container_name: mlflow-server
     restart: unless-stopped
     ports:
       - "5000:5000"
