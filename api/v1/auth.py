@@ -6,11 +6,11 @@ from fastapi import APIRouter, HTTPException, status, Body, Response
 from fastapi.responses import JSONResponse
 from typing import Dict, Optional
 
-from models.user import UserResponse, LoginRequest, UserPassword, UserCreate, \
+from db.db_models.users import UserResponse, LoginRequest, UserPassword, UserCreate, \
     UserUpdate
 from models import user as user_model
 from utils.logger import logger
-from db.user import create_user, retrieve_user_by_login, update_user
+from db.users import create_user, retrieve_user_by_login, update_user
 
 from fastapi.security import OAuth2PasswordRequestForm
 from typing_extensions import Annotated
@@ -18,7 +18,7 @@ from uuid import UUID
 
 from fastapi import Response, status, Depends
 from fastapi.routing import APIRouter
-from models.token import Token
+from v1.token import Token
 from utils.security import oauth2_scheme, get_password_hash, verify_password, \
     create_url_safe_token, decode_url_safe_token
 
@@ -30,7 +30,7 @@ from config import Config
 
 from mail.mail import mail, create_message
 
-from db.user import retrieve_user_by_email
+from db.users import retrieve_user_by_email
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
