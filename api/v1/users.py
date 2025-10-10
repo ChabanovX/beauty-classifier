@@ -3,7 +3,7 @@ from uuid import UUID
 from utils.logger import logger
 
 from db.user import create_user, remove_user, retrieve_user, update_user
-from db.user import retrieve_user_profile
+# from db.user import retrieve_user_profile
 from fastapi import Response, status, Depends
 from fastapi.routing import APIRouter
 from models.user import UserCreate, UserProfileResponse, UserResponse, UserBase

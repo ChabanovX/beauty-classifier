@@ -4,20 +4,25 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from starlette import status
 from typing_extensions import Annotated
-from models.token import TokenData
-from jwt.exceptions import InvalidTokenError
+from api.models.token import TokenData
+from jwt.exceptions import JWTException
+from sqlalchemy import select
 
-from models.token import TokenData
-from models.user import UserBase
-from db.user import retrieve_user_by_login
+from api.models.token import TokenData
+from api.models.users import UserBase
+# from db.user import retrieve_user_by_login
+
+from api.db.db_models.users import User
 
 from passlib.context import CryptContext
 
 import os
 
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
+import dotenv
+# from utils.logger import logger
 
-from utils.logger import logger
+dotenv.load_dotenv(".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
@@ -49,9 +54,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         if login is None:
             raise credentials_exception
         token_data = TokenData(login=login)
-    except InvalidTokenError:
+    except JWTException:
         raise credentials_exception
-    user = await retrieve_user_by_login(token_data.login)
+    user = select(User).where(User.login == token_data.login)
     if user is None:
         raise credentials_exception
     return user
@@ -84,4 +89,5 @@ def decode_url_safe_token(token: str):
         return token_data
 
     except Exception as e:
-        logger.error(str(e))
+        # logger.error(str(e))
+        print(f"Error loading security token: {e}")

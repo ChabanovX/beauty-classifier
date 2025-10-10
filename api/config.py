@@ -4,7 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     scut_data_path: str = "datasets/scut"

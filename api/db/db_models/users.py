@@ -1,273 +1,178 @@
+# models.py
+import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional, List
+from enum import Enum as PyEnum
 from uuid import UUID
-
 from pydantic import BaseModel, Field
-
-from models.roadmap import RoadmapInfo
-
-
-class UserSkill(BaseModel):
-    """Schema for a user's individual skill entry."""
-    skill: str = Field(
-        ...,
-        description="Name of the skill",
-        examples=["Python", "Data Analysis"]
-    )
-    skill_level: Optional[str] = Field(
-        None,
-        description="Proficiency level of the skill",
-        examples=["Beginner", "Intermediate", "Advanced"]
-    )
-    is_goal: bool = Field(
-        ...,
-        description="Indicates if this skill is a target goal for the user",
-        examples=[True, False]
-    )
+from sqlalchemy import (
+    String, Boolean, DateTime, ForeignKey, Float, Integer, UniqueConstraint, Index
+)
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
-class UserPassword(BaseModel):
-    login: str = Field(
-        ...,
-        description="Login identifier for the user",
-        examples=["johndoe", "user123"]
-    )
-    password: str = Field(
-        ...,
-        description="""User password""",
-        examples=["P@ssw0rd!"]
-    )
 
 
-class UserBase(BaseModel):
-    """Base schema for user data shared between
-       create and response operations."""
-    login: str = Field(
-        ...,
-        description="Unique login identifier for the user",
-        examples=["johndoe", "user123"]
-    )
-    password: str = Field(
-        ...,
-        description="User password",
-        examples=["P@ssw0rd!"],
-    )
-    background: str = Field(
-        ...,
-        description="Background information about the user",
-        examples=["5 years experience in software development"]
-    )
-    education: str = Field(
-        ...,
-        description="Education details of the user",
-        examples=["Bachelor's in Computer Science"]
-    )
-    goals: str = Field(
-        ...,
-        description="User's professional or career goals",
-        examples=["Become a senior data engineer"]
-    )
-    goal_vacancy: str = Field(
-        ...,
-        description="Desired job vacancy or role the user aims for",
-        examples=["Data Engineer"]
-    )
-    skills: List[UserSkill] = Field(
-        ...,
-        description="List of user's skills with levels and goal flags",
-        examples=[
-            [
-                {
-                    "skill": "Python",
-                    "skill_level": "Intermediate",
-                    "is_goal": False
-                },
-                {
-                    "skill": "Machine Learning",
-                    "skill_level": "Beginner",
-                    "is_goal": True
-                }
-            ]
-        ]
-    )
 
-    is_active: bool = Field(
-        default=False,
-        description="Indicates whether the user's account is currently active",
-        examples=[True, False]
-    )
-
-    is_verified: bool = Field(
-        default=False,
-        description="Indicates whether the user's email or account has been verified",
-        examples=[True, False]
-    )
-
-    mail: str = Field(
-        description="Mail address of the user",
-        examples=["johndoe@gmail.com"]
-    )
-
-
-class UserCreate(UserBase):
-    """Schema for creating a new user. Inherits all fields from UserBase."""
+class Base(DeclarativeBase):
     pass
 
+# Пользователь без почты/роадмапа
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    login: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
-class UserResponse(UserBase):
-    """Schema for user data returned in responses,
-    includes system-generated fields."""
-    user_id: UUID = Field(
-        ...,
-        description="Unique identifier for the user",
-        examples=["123e4567-e89b-12d3-a456-426614174000"]
-    )
-    creation_date: datetime = Field(
-        ...,
-        description="Timestamp when the user was created",
-        examples=["2025-06-24T15:30:00Z"]
-    )
-    roadmap: Optional[RoadmapInfo] = None
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
 
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-class UserUpdate(BaseModel):
-    """Schema for updating existing user data;
-    all fields optional except user_id."""
-    user_id: UUID = Field(
-        ...,
-        description="Unique identifier of the user to update",
-        examples=["123e4567-e89b-12d3-a456-426614174000"]
-    )
-    login: Optional[str] = Field(
-        None,
-        description="(Optional) New login for the user",
-        examples=["newusername"]
-    )
-    password: Optional[str] = Field(
-        None,
-        description="(Optional) Updated password",
-        examples=["N3wP@ssw0rd"]
-    )
-    background: Optional[str] = Field(
-        None,
-        description="(Optional) Updated background information",
-        examples=["6 years experience in backend development"]
-    )
-    education: Optional[str] = Field(
-        None,
-        description="(Optional) Updated education details",
-        examples=["Master's in Data Science"]
-    )
-    goals: Optional[str] = Field(
-        None,
-        description="(Optional) Updated career goals",
-        examples=["Lead a data engineering team"]
-    )
-    goal_vacancy: Optional[str] = Field(
-        None,
-        description="(Optional) Updated desired vacancy or role",
-        examples=["Senior Data Engineer"]
-    )
-    skills: Optional[List[UserSkill]] = Field(
-        None,
-        description="""(Optional) Updated list of user's skills;
-        replaces existing skills if provided""",
-        examples=[
-            [
-                {
-                    "skill": "Go",
-                    "skill_level": "Beginner",
-                    "is_goal": True
-                },
-                {
-                    "skill": "Docker",
-                    "skill_level": "Intermediate",
-                    "is_goal": False
-                }
-            ]
-        ]
+    photos: Mapped[list["Photo"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    inferences: Mapped[list["Inference"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (Index("ix_users_login", "login"),)
+
+# Фото пользователя: только ссылки/мета
+class PhotoStatus(str, PyEnum):
+    queued = "queued"
+    processed = "processed"
+    failed = "failed"
+
+class Photo(Base):
+    __tablename__ = "photos"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    storage_uri: Mapped[str] = mapped_column(String(512), nullable=False)  # dvc://... или s3://...
+    sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    status: Mapped[PhotoStatus] = mapped_column(String(16), default=PhotoStatus.queued.value, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="photos")
+    inferences: Mapped[list["Inference"]] = relationship(back_populates="photo", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_photos_user_status", "user_id", "status"),
     )
 
-    is_active: Optional[bool] = Field(
-        None,
-        description="Indicates whether the user's account is currently active",
-        examples=[True, False]
+# Версия модели/наборов
+class ModelVersion(Base):
+    __tablename__ = "model_versions"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)  # например "face-enc-v3"
+    registry_ref: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)  # ссылка в MLflow/реестре
+    celebrity_set_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # версия набора знаменитостей
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("name", "celebrity_set_version", name="uq_model_name_setver"),)
+
+# Инференс: скора и тайминги
+class Inference(Base):
+    __tablename__ = "inferences"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    photo_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("photos.id", ondelete="CASCADE"), index=True, nullable=False)
+    model_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("model_versions.id", ondelete="RESTRICT"), index=True, nullable=False)
+
+    beauty_score: Mapped[float] = mapped_column(Float, nullable=False)  # 0..100 или 0..1
+    latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="inferences")
+    photo: Mapped[bytes] = mapped_column(nullable=False)
+    model_version: Mapped["ModelVersion"] = relationship()
+
+    matches: Mapped[list["Match"]] = relationship(back_populates="inference", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_inferences_user_created", "user_id", "created_at"),
+        Index("ix_inferences_photo_model", "photo_id", "model_version_id"),
     )
 
-    is_verified: Optional[bool] = Field(
-        None,
-        description="Indicates whether the user's email or account has been verified",
-        examples=[True, False]
+# Справочник знаменитостей
+class Celebrity(Base):
+    __tablename__ = "celebrities"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+
+    ref_images_uri: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # dvc://... набор эталонных фото
+    embeddings_uri: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # ссылка на файл с эмбеддингами
+    embedding_dim: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    embedding_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (UniqueConstraint("name", name="uq_celebrity_name"),)
+
+# Матчи инференса с селебрити
+class Match(Base):
+    __tablename__ = "matches"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    inference_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("inferences.id", ondelete="CASCADE"), index=True, nullable=False)
+    celebrity_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("celebrities.id", ondelete="RESTRICT"), index=True, nullable=False)
+
+    similarity: Mapped[float] = mapped_column(Float, nullable=False)  # 0..1 косинус/др
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)        # 1 — лучший матч
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    inference: Mapped["Inference"] = relationship(back_populates="matches")
+    celebrity: Mapped["Celebrity"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("inference_id", "celebrity_id", name="uq_inference_celebrity"),
+        Index("ix_matches_inference_rank", "inference_id", "rank"),
     )
 
-    mail: Optional[str] = Field(
-        None,
-        description="Mail address of the user",
-        examples=["johndoe@gmail.com"]
-    )
 
+# schemas.py
+
+class UserCreate(BaseModel):
+    login: str = Field(..., examples=["johndoe"])
+    password: str = Field(..., examples=["P@ssw0rd!"])
+
+class UserResponse(BaseModel):
+    user_id: UUID
+    login: str
+    is_active: bool
+    is_verified: bool
+    creation_date: datetime
 
 class LoginRequest(BaseModel):
-    """Schema for user login requests."""
-    login: str = Field(
-        ...,
-        description="Login identifier for the user",
-        examples=["johndoe", "user123"]
-    )
-    password: str = Field(
-        ...,
-        description="User password",
-        examples=["P@ssw0rd!"]
-    )
+    login: str
+    password: str
 
+class PhotoCreate(BaseModel):
+    user_id: UUID
+    storage_uri: str  # dvc://... / s3://...
+    sha256: Optional[str] = None
 
-class UserProfileResponse(BaseModel):
-    """Schema for user profile response"""
-    user: UserResponse = Field(
-        ...,
-        description="User profile information",
-        examples=[
-            {
-                "user_id": "123e4567-e89b-12d3-a456-426614174000",
-                "login": "johndoe",
-                "background": "5 years experience in software development",
-                "education": "Bachelor's in Computer Science",
-                "goals": "Become a team lead",
-                "goal_vacancy": "Senior Software Engineer",
-                "skills": [
-                    {
-                        "skill": "Python",
-                        "skill_level": "Intermediate",
-                        "is_goal": False
-                    },
-                    {
-                        "skill": "Machine Learning",
-                        "skill_level": "Beginner",
-                        "is_goal": True
-                    }
-                ]
-            }
-        ]
-    )
-    roadmap_id: UUID = Field(
-        ...,
-        description="Unique identifier for the user's roadmap",
-        examples=["123e4567-e89b-12d3-a456-426614174000"]
-    )
-    progress: int = Field(
-        ...,
-        description="Progress percentage for the user's roadmap",
-        examples=[75, 0, 100],
-        ge=0,
-        le=100
-    )
-    history: List = Field(
-        ...,
-        description="List of UUIDs representing the user's roadmap history",
-        examples=[
-            {
-                "node_id": "123e4567-e89b-12d3-a456-426614174000",
-                "title": "Python Course"
-            }
-        ]
-    )
+class PhotoResponse(BaseModel):
+    photo_id: UUID
+    user_id: UUID
+    storage_uri: str
+    status: str
+    created_at: datetime
+
+class InferenceCreate(BaseModel):
+    user_id: UUID
+    photo_id: UUID
+    model_version_id: UUID
+
+class MatchOut(BaseModel):
+    celebrity_id: UUID
+    name: str
+    similarity: float
+    rank: int
+
+class InferenceResponse(BaseModel):
+    inference_id: UUID
+    user_id: UUID
+    photo_id: UUID
+    model_version_id: UUID
+    beauty_score: float
+    created_at: datetime
+    matches: List[MatchOut]
