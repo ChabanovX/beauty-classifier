@@ -10,7 +10,7 @@ from api.utils.security import get_password_hash, verify_password  # argon2/bcry
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from api.models import users  # твой ORM
-from db.session import get_async_session  # Depends возвращает AsyncSession
+from api.db.db_connector import get_async_session  # Depends возвращает AsyncSession
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
