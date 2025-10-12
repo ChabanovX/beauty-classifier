@@ -1,8 +1,3 @@
 [core]
-    remote = remote
     autostage = true
-['remote "remote"']
-    url = gdrive://1psK27zkEYDxxteSRyAJCqZvWE06G_Ln5
-    gdrive_acknowledge_abuse = true
-    gdrive_client_id = 66356536831-p4f4nvgva9ie8q6lf2jg9th10rc7l1nm.apps.googleusercontent.com
-    gdrive_client_secret = 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
+    remote = vmsshremote

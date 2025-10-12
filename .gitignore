@@ -37,3 +37,4 @@ models/*.pt
 
 .python-version
 uv.lock
+.ruff_cahe
