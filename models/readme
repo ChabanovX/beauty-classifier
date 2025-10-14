@@ -1,3 +1,0 @@
-attractiveness_classifier.pt
-
-Pull models by running `make pull-data`

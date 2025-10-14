@@ -50,9 +50,9 @@ A mobile application that uses computer vision to analyze facial features for en
 - [make](https://www.gnu.org/software/make/), [uv](https://www.uvproject.xyz/), [docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/install/)
 
 ### Quick Start
-1. **Pull data**: `make pull-data` (downloads datasets and models, ask for config file first)
-2. **Start services**: `make compose-up` (launches backend via Docker)
-3. **Local development**: `uv sync` then `uv run python -m api`
+1. `make setup`
+2. `make run-dev`
+Explore make commands with `make help`
 
 ### Testing
 Run `make test` to execute test suite
