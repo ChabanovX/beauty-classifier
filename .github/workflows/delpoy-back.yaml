@@ -14,7 +14,7 @@ jobs:
           cd ~/beauty-classifier
           git pull
     - name: Update dependencies
-      run: uv sync --no-dev
+      run: . .venv/bin/activate && uv sync --no-dev
     - name: Pull data
       run: make pull-data
     - name: Stop and restart containers
