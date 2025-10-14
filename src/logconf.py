@@ -23,7 +23,7 @@ class Logging(BaseModel):
                     "level": record.levelname,
                     "logger": record.name,
                     "message": record.getMessage(),
-                    "module": record.module,
+                    "file": record.filename,
                     "function": record.funcName,
                     "line": record.lineno,
                 }
@@ -71,7 +71,7 @@ class Logging(BaseModel):
             "formatters": {
                 "colored": {
                     "()": colorlog.ColoredFormatter,
-                    "format": "%(log_color)s%(levelname)-8s%(reset)s: %(asctime)s: %(name)s: %(message)s",
+                    "fmt": "%(log_color)s%(levelname)-8s%(reset)s: %(asctime)s: %(name)s: %(message)s",
                     "datefmt": "%H:%M:%S",
                     "log_colors": {
                         "DEBUG": "cyan",
