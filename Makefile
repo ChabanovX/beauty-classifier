@@ -26,11 +26,8 @@ pull-data:
 
 setup: sync run-migrations pull-data
 
-run-dev:
-	uv run -m src.interfaces.api --app.dev
-
-run-prod:
-	uv run -m src.interfaces.api --app.prod
+run:
+	uv run -m src.interfaces.api
 
 migrate:
 	uv run alembic revision --autogenerate -m "$(m)"

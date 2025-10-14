@@ -1,8 +1,7 @@
 import warnings
-import logging.config
 
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, CliImplicitFlag, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .logconf import Logging
 
@@ -13,13 +12,12 @@ class DB(BaseModel):
     connection_timeout: int
     pool_size: int
     pool_timeout: int
-    connection_string: str | None = None
+    connection_string: str = "unset"
 
 
 class API(BaseModel):
     host: str
     port: int
-    reload: CliImplicitFlag[bool] = False
 
 
 class ML(BaseModel):
@@ -35,19 +33,12 @@ class Auth(BaseModel):
 
 
 class App(BaseModel):
-    dev: CliImplicitFlag[bool] = True
-    prod: CliImplicitFlag[bool] = False
-
-    @property
-    def env(self) -> str:
-        return "DEV" if self.dev else "PROD"
+    dev: bool = False
 
 
 class Config(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=[".env.example", ".env"],
-        env_nested_delimiter="__",
-        cli_implicit_flags=["app.dev", "app.prod", "api.reload"],
+        env_file=[".env", ".env.example"], env_nested_delimiter="__"
     )
 
     db: DB
@@ -75,12 +66,5 @@ class Config(BaseSettings):
 
 
 config = Config()
-
-logging.config.dictConfig(config.logging.config)
-
-# if config.app.dev:
-#     logging.debug(
-#         f"Loaded config: {config.model_dump_json(indent=2, exclude='logging')}"
-#     )
 
 warnings.simplefilter(action="ignore", category=FutureWarning)

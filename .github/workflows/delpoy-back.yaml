@@ -9,26 +9,15 @@ jobs:
     runs-on: ml-vm-runner
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Deploy to VM
+    - name: Pull code
       run: |
           cd ~/ml-project
-          
-          # Sync changes
           git pull
-          
-          # Update dependencies
-          uv sync --no-dev
-          
-          # Pull data and models
-          make pull-data
-          
-          # Stop and restart containers
-          docker compose down
-          docker compose pull
-          docker compose up -d
-          
-          # Clean up unused images
-          docker image prune -f
+    - name: Update dependencies
+      run: uv sync --no-dev
+    - name: Pull data
+      run: make pull-data
+    - name: Stop and restart containers
+      run: docker compose down && docker compose pull && docker compose up -d
+    - name: Clean up unused images
+      run: docker image prune -f

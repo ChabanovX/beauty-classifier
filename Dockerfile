@@ -4,12 +4,10 @@ WORKDIR /app
 
 COPY pyproject.toml .
 
-RUN uv venv 
-
-RUN uv sync 
+RUN uv venv && . .venv/bin/activate && uv sync --no-dev
 
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "-m", "src.interfaces.api"]
+CMD ["uv", "run", "-m", "src.interfaces.cli"]
