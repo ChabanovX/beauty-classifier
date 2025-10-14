@@ -11,7 +11,7 @@ jobs:
     steps:
     - name: Pull code
       run: |
-          cd ~/ml-project
+          cd ~/beauty-classifier
           git pull
     - name: Update dependencies
       run: uv sync --no-dev
