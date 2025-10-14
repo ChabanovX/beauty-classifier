@@ -12,4 +12,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "python", "-m", "api"]
+CMD ["uv", "run", "-m", "src.interfaces.api"]

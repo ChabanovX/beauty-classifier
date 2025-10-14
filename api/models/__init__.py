@@ -1,1 +1,0 @@
-from .attractiveness import attractiveness_model

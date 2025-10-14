@@ -36,5 +36,9 @@ __pypackages__/
 models/*.pt
 
 .python-version
-uv.lock
-.ruff_cahe
+.ruff_caсhe
+
+# logs
+*.log
+# dev db
+*.sqlite3
