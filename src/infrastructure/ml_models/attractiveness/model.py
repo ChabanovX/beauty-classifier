@@ -17,6 +17,7 @@ try:
 except ImportError:
     pass
 
+
 class AttractivenessModel(ModelBase):
     _name: str = "attractiveness_classifier"
 

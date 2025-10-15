@@ -3,9 +3,5 @@ repos:
   # Ruff version.
   rev: v0.14.0
   hooks:
-    # Run the linter.
-    - id: ruff-check
-      args: [ --fix-only, "-s" ]
-      pass_filenames: false
     # Run the formatter.
     - id: ruff-format

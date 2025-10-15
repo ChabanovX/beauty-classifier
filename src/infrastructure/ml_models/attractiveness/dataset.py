@@ -7,6 +7,7 @@ import os
 
 SCUT_DATA_PATH = "datasets/scut"
 
+
 class AttractivenessDataset(Dataset):
     def __init__(self, data_file: str, transform=None):
         self.img_labels = pd.read_csv(
