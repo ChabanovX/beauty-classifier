@@ -27,7 +27,7 @@ pull-data:
 setup: sync run-migrations pull-data
 
 run:
-	uv run -m src.interfaces.api
+	uvicorn src.interfaces.api.app:app --reload
 
 migrate:
 	uv run alembic revision --autogenerate -m "$(m)"
@@ -37,10 +37,13 @@ lint:
 	uv run ruff check --fix && uv run ruff format
 
 test:
-	uv run pytest tests/$(ARG)
+	uv run pytest
 
 compose-up:
-	docker compose up $(ARG)
+	docker compose up -d
+
+mlflow-compose-up:
+	docker compose -f docker-compose-mlflow.yml up -d
 
 train-attractiveness:
 	uv run python -c "from $(ML_MODULE) import attractiveness_model; attractiveness_model.train()"

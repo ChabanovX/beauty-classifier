@@ -12,14 +12,13 @@ class Base(DeclarativeBase):
 class CreatedAtMixin(Base):
     __abstract__ = True
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
+        nullable=False, index=True, server_default=func.now()
     )
 
 
-# Association table for many-to-many between Inference and Celebrity
 association_table = Table(
     "inference_celebrities",
-    CreatedAtMixin.metadata,
+    Base.metadata,
     Column("inference_id", ForeignKey("inferences.id"), primary_key=True),
     Column("celebrity_id", ForeignKey("celebrities.id"), primary_key=True),
 )
@@ -57,5 +56,5 @@ class Inference(CreatedAtMixin):
         secondary=association_table,
         back_populates="inferences",
         cascade="all, delete",
-        lazy="selectin",  # Eagerly loads celebrities when querying Inference
+        lazy="selectin",
     )

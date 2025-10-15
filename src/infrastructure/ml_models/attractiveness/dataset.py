@@ -1,5 +1,3 @@
-from src.config import config
-
 import torch
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
@@ -7,11 +5,12 @@ from torchvision import transforms
 from PIL import Image
 import os
 
+SCUT_DATA_PATH = "datasets/scut"
 
 class AttractivenessDataset(Dataset):
     def __init__(self, data_file: str, transform=None):
         self.img_labels = pd.read_csv(
-            os.path.join(config.ml.scut_data_path, "labels/processed", data_file),
+            os.path.join(SCUT_DATA_PATH, "labels/processed", data_file),
         )
         self.transform = transform
 
@@ -23,7 +22,7 @@ class AttractivenessDataset(Dataset):
         label = torch.tensor(label, dtype=torch.float32)
 
         img_path = os.path.join(
-            config.ml.scut_data_path, "images", self.img_labels["image"].iloc[idx]
+            SCUT_DATA_PATH, "images", self.img_labels["image"].iloc[idx]
         )
 
         with Image.open(img_path) as image:

@@ -1,1 +1,1 @@
-Generic single-database configuration with an async dbapi.
+`versions/` directory stores Alembic migration scripts.

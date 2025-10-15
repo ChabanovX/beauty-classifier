@@ -1,31 +1,21 @@
-import logging.config
 import click
-import uvicorn
 
-from src.interfaces.api.app import app
-from src.config import config
+from src.infrastructure.ml_models.attractiveness.model import attractiveness_model
 
 
-@click.group()
+@click.group
 def cli():
     pass
 
 
-@cli.command()
-@click.option("--dev", is_flag=True, default=False, help="Run in development mode")
-def run(dev: bool):
-    """Run the API server."""
-    config.app.dev = dev
-
-    # Configure logging
-    logging.config.dictConfig(config.logging.config)
-
-    uvicorn.run(
-        app,
-        host=config.api.host,
-        port=config.api.port,
-        log_config=config.logging.config,
-    )
+@cli.command
+@click.option("--train", is_flag=True, default=False, help="Train the model")
+@click.option("--eval", is_flag=True, default=False, help="Evaluate the model")
+def attractiveness(train: bool, eval: bool):
+    if train:
+        attractiveness_model.train()
+    if eval:
+        attractiveness_model.evaluate()
 
 
 if __name__ == "__main__":

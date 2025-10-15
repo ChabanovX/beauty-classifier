@@ -25,20 +25,23 @@ class UserRepository(BaseRepository[User]):
         elif isinstance(by, str):
             column = User.login
         query = (
-            select(User).options(selectinload(User.inferences)).where(User.column == by)
+            select(User)
+            .options(selectinload(User.inferences))
+            .where(column == by)
+            .limit(1)
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def filter(self, offset, limit):
-        query = (
-            select(User)
-            .options(selectinload(User.inferences))
-            .offset(offset)
-            .limit(limit)
-        )
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
+    # async def filter(self, offset, limit):
+    #     query = (
+    #         select(User)
+    #         .options(selectinload(User.inferences))
+    #         .offset(offset)
+    #         .limit(limit)
+    #     )
+    #     result = await self.db.execute(query)
+    #     return list(result.scalars().all())
 
     async def get_inferences(self, id: int) -> list[Inference]:
         query = (
@@ -55,7 +58,7 @@ class UserRepository(BaseRepository[User]):
         query = (
             select(Inference)
             .where(Inference.user_id == id)
-            .order_by(Inference.date.desc())
+            .order_by(Inference.created_at.desc())
             .limit(1)
         )
         result = await self.db.execute(query)

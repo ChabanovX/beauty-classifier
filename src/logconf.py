@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 
 class Logging(BaseModel):
-    config: dict | None = None  # set in Config.__post_init__
-    level: str | None = "INFO"  # this too
+    config: dict = {}  # set in Config.__post_init__
+    level: str = "INFO"  # this too
 
     max_bytes: int
     backup_count: int
@@ -46,7 +46,7 @@ class Logging(BaseModel):
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": self.level,
                     "formatter": "json",
-                    "filename": "app_prod.log",
+                    "filename": "logs/app.log",
                     "maxBytes": self.max_bytes,  # 10MB
                     "backupCount": self.backup_count,
                 },
@@ -98,7 +98,7 @@ class Logging(BaseModel):
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": self.level,
                     "formatter": "plain",
-                    "filename": "app_dev.log",
+                    "filename": "logs/app_dev.log",
                     "maxBytes": self.max_bytes,  # 10MB
                     "backupCount": self.backup_count,
                 },
@@ -107,12 +107,12 @@ class Logging(BaseModel):
             "loggers": {
                 "uvicorn": {
                     "level": self.level,
-                    "handlers": ["console"],
+                    "handlers": ["console", "file"],
                     "propagate": False,
                 },
                 "ml": {
                     "level": self.level,
-                    "handlers": ["console"],
+                    "handlers": ["console", "file"],
                     "propagate": False,
                 },
             },
