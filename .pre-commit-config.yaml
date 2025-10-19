@@ -1,12 +1,16 @@
 repos:
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  # Ruff version.
-  rev: v0.14.1
-  hooks:
-    # Run the linter.
-    - id: ruff-check
-      args: [ --exit-zero, --respect-gitignore, -s ]
-      pass_filenames: false
-    # Run the formatter.
-    - id: ruff-format
-      pass_filenames: false
+  - repo: local
+    hooks:
+      - id: ruff-check-uv-files
+        name: Ruff Check (uv) on changed files
+        entry: uv run ruff check --fix --exit-zero --respect-gitignore
+        language: system
+        types: [python]
+        stages: [pre-commit]
+        
+      - id: ruff-format-uv-files
+        name: Ruff Format (uv) on changed files
+        entry: uv run ruff format
+        language: system
+        types: [python]
+        stages: [pre-commit]

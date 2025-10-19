@@ -262,7 +262,7 @@ class AttractivenessModel(ModelBase):
                     try:
                         val = metric.compute().item()
                         current_metrics[name] = f"{val:.4f}"
-                    except:
+                    except AttributeError:
                         pass
                 progress_bar.set_postfix(current_metrics)
 
