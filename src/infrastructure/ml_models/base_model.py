@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+logger = logging.getLogger(__name__)
+
 
 class ModelBase(ABC):
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,13 +27,17 @@ class ModelBase(ABC):
 
     def load(self, path: str | None = None):
         """Load model weights"""
-        logging.debug(f"Loading {self._name} from {path}")
+        if self.loaded:
+            return
         load_path = f"{self._models_dir}/{self._name}.pt" or path
+        if not load_path:
+            raise ValueError(f"Model {self._name} not found")
+        logger.debug(f"Loading {self._name} from {load_path}")
         self._model.load_state_dict(torch.load(load_path, map_location=self._device))
         self._model.to(self._device)
         self._model.eval()
         self.loaded = True
-        logging.debug(f"{self._name} loaded from {load_path} to device {self._device}")
+        logger.debug(f"{self._name} loaded from {load_path} to device {self._device}")
 
     @abstractmethod
     def train(
@@ -52,5 +58,4 @@ class ModelBase(ABC):
 
     @abstractmethod
     def predict(self, input_data):
-        """Subclasses must implement their specific prediction logic"""
-        pass
+        raise NotImplementedError

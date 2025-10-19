@@ -1,12 +1,12 @@
-from fastapi import APIRouter, UploadFile, HTTPException
-from src.infrastructure.schemas.attractiveness import AttractivenessPrediction
+from fastapi import APIRouter, UploadFile, HTTPException, status
+from ..schemas import AttractivenessPrediction
 from src.application.services.ml import MLService
 
-ml_router = APIRouter(tags=["ML"])
+ml_router = APIRouter(prefix="/ml", tags=["ML"])
 
 
-@ml_router.post("/attractiveness/predict")
-async def predict(image_file: UploadFile):
+@ml_router.post("/attractiveness")
+async def predict(image_file: UploadFile) -> AttractivenessPrediction:
     if not image_file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=400, detail="File must be an image (JPEG, PNG, JPG, WEBP)"
@@ -17,6 +17,9 @@ async def predict(image_file: UploadFile):
     score = MLService.get_attractiveness(image_bytes)
 
     if not score:
-        raise HTTPException(status_code=400, detail="Could not process image")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not process image",
+        )
 
     return AttractivenessPrediction(prediction=score)

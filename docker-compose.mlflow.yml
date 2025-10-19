@@ -5,13 +5,15 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - MLFLOW_TRACKING_URI=http://localhost:5000
+      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
     volumes:
-      - ./mlflow_artifacts:/mlflow/artifacts  # Mount local directory
-    command: >
-      sh -c "mlflow server
-        --host 0.0.0.0
-        --port 5000
-        --backend-store-uri sqlite:////mlflow/mlflow.db
-        --default-artifact-root /mlflow/artifacts
-        --serve-artifacts"
+      - ./mlflow_artifacts:/mlflow/artifacts
+      - ./mlflow_data:/mlflow
+    command: [
+      "mlflow", "server",
+      "--host", "0.0.0.0",
+      "--port", "5000",
+      "--backend-store-uri", "sqlite:////mlflow/mlflow.db",
+      "--default-artifact-root", "/mlflow/artifacts",
+      "--serve-artifacts"
+    ]

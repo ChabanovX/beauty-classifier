@@ -42,3 +42,4 @@ models/*.pt
 *.log
 # dev db
 *.sqlite3
+mlruns/
