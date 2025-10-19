@@ -1,5 +1,7 @@
 import io
 import logging
+import warnings
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -16,6 +18,8 @@ try:
     from .dataset import get_data_loaders
 except ImportError:
     pass
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +53,7 @@ class AttractivenessModel(ModelBase):
         self._model.to(self._device)
         self.loaded = False
 
-    def _setup_metrics(self, device, num_classes=1):
+    def _setup_metrics(self, device):
         return nn.ModuleDict(
             {
                 "mse": torchmetrics.MeanSquaredError().to(device),
@@ -84,155 +88,140 @@ class AttractivenessModel(ModelBase):
 
         train_loader, val_loader = get_data_loaders()
 
-        # Setup metrics - ensure proper reduction
         metrics = self._setup_metrics(self._device)
         best_loss = float("inf")
 
         prev_epoch_loss: float = 0.0
 
-        # Start MLflow run
-        with mlflow.start_run():
-            # Log parameters
-            mlflow.log_params(
-                {
-                    "epochs": epochs,
-                    "learning_rate": lr,
-                    "criterion": criterion.__class__.__name__,
-                    "optimizer": optimizer.__class__.__name__,
-                    "scheduler": scheduler.__class__.__name__ if scheduler else "None",
-                    "model_name": "resnet50",
-                    "out_features": 512,
-                    "fine_tuning": "feature_extraction",  # since we freeze layers
-                }
-            )
+        mlflow.start_run(
+            run_name=f"Attractiveness {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
 
-            # Log model architecture as tag
-            mlflow.set_tag("model_architecture", "resnet50_frozen_fc_custom")
+        mlflow.log_params(
+            {
+                "epochs": epochs,
+                "learning_rate": lr,
+                "criterion": criterion.__class__.__name__,
+                "optimizer": optimizer.__class__.__name__,
+                "scheduler": scheduler.__class__.__name__ if scheduler else "None",
+                "model_name": "resnet50",
+                "out_features": 512,
+                "fine_tuning": "feature_extraction",
+            }
+        )
 
-            # Log the training script itself as an artifact
-            mlflow.log_artifact(__file__, artifact_path="code")
+        # Log model architecture as tag
+        mlflow.set_tag("model_architecture", "resnet50_frozen_fc_custom")
 
-            for epoch in range(epochs):
-                logger.info(f"Epoch {epoch + 1}/{epochs}")
+        mlflow.log_artifact(__file__, artifact_path="code")
 
-                for phase, dataloader in [("train", train_loader), ("val", val_loader)]:
+        for epoch in range(epochs):
+            logger.info(f"Epoch {epoch + 1}/{epochs}")
+
+            for phase, dataloader in [("train", train_loader), ("val", val_loader)]:
+                if phase == "train":
+                    self._model.train()
+                else:
+                    self._model.eval()
+
+                # Reset ALL metrics at phase start
+                for metric in metrics.values():
+                    metric.reset()
+
+                running_loss = 0.0
+                total_samples = 0
+
+                progress_bar = tqdm(
+                    dataloader, desc=f"{phase.capitalize()} Epoch {epoch + 1}"
+                )
+
+                for batch_idx, (inputs, labels) in enumerate(progress_bar):
+                    inputs = inputs.to(self._device)
+                    labels = labels.to(self._device).view(-1, 1)
+                    batch_size = inputs.size(0)
+                    total_samples += batch_size
+
                     if phase == "train":
-                        self._model.train()
-                    else:
-                        self._model.eval()
+                        optimizer.zero_grad()
 
-                    # Reset ALL metrics at phase start
-                    for metric in metrics.values():
-                        metric.reset()
-
-                    running_loss = 0.0
-                    total_samples = 0
-
-                    progress_bar = tqdm(
-                        dataloader, desc=f"{phase.capitalize()} Epoch {epoch + 1}"
-                    )
-
-                    for batch_idx, (inputs, labels) in enumerate(progress_bar):
-                        inputs = inputs.to(self._device)
-                        labels = labels.to(self._device).view(
-                            -1, 1
-                        )  # Keep shape [batch, 1]
-                        batch_size = inputs.size(0)
-                        total_samples += batch_size
+                    with torch.set_grad_enabled(phase == "train"):
+                        outputs = self._model(inputs)
+                        loss = criterion(outputs, labels)
 
                         if phase == "train":
-                            optimizer.zero_grad()
+                            loss.backward()
+                            optimizer.step()
 
-                        with torch.set_grad_enabled(phase == "train"):
-                            outputs = self._model(inputs)  # Shape: [batch, 1]
-                            loss = criterion(outputs, labels)  # MSE on [batch, 1]
+                    running_loss += loss.item() * batch_size
 
-                            if phase == "train":
-                                loss.backward()
-                                optimizer.step()
+                    outputs_squeezed = outputs.squeeze(-1)
+                    labels_squeezed = labels.squeeze(-1)
 
-                        # Accumulate criterion loss (weighted by batch size)
-                        running_loss += loss.item() * batch_size
-
-                        # Update metrics with PROPER tensor shapes
-                        # Squeeze to match expected 1D input for metrics
-                        outputs_squeezed = outputs.squeeze(-1)  # [batch]
-                        labels_squeezed = labels.squeeze(-1)  # [batch]
-
-                        for name, metric in metrics.items():
-                            metric.update(outputs_squeezed, labels_squeezed)
-
-                        # Progress bar with criterion loss (most accurate real-time)
-                        progress_bar.set_postfix(
-                            {
-                                "loss": f"{loss.item():.4f}",
-                                "mse": f"{metrics['mse'].compute().item():.4f}",
-                            }
-                        )
-
-                    # Compute FINAL metrics
-                    epoch_loss = running_loss / total_samples  # Weighted average
-
-                    # Get computed metrics (now consistent with criterion)
-                    computed_metrics = {}
                     for name, metric in metrics.items():
-                        computed_metrics[name] = metric.compute().item()
+                        metric.update(outputs_squeezed, labels_squeezed)
 
-                    mse_diff = epoch_loss - prev_epoch_loss
-
-                    # Log metrics to MLflow for this epoch and phase
-                    mlflow.log_metrics(
+                    progress_bar.set_postfix(
                         {
-                            f"{phase}_loss": epoch_loss,
-                            f"{phase}_mse": computed_metrics["mse"],
-                            f"{phase}_explained_variance": computed_metrics[
-                                "explained_variance"
-                            ],
-                            f"{phase}_mse_diff": mse_diff,
-                        },
-                        step=epoch,
+                            "loss": f"{loss.item():.4f}",
+                            "mse": f"{metrics['mse'].compute().item():.4f}",
+                        }
                     )
 
-                    logger.info(f"{phase.capitalize()} Results:")
-                    logger.info(f"Previous MSE: {prev_epoch_loss:.6f}")
-                    logger.info(f"Current MSE:    {epoch_loss:.6f}")
-                    logger.info(f"Difference:    {mse_diff:.6f}")
+                epoch_loss = running_loss / total_samples  # Weighted average
 
-                    for name, value in computed_metrics.items():
-                        if name != "mse":  # Skip MSE since we already logged it
-                            logger.info(f"  {name.upper()}: {value:.4f}")
+                computed_metrics = {}
+                for name, metric in metrics.items():
+                    computed_metrics[name] = metric.compute().item()
 
-                    # Save best model based on criterion loss
-                    if phase == "val" and epoch_loss < best_loss:
-                        best_loss = epoch_loss
-                        self.save()
-                        # Log the best model to MLflow
-                        mlflow.pytorch.log_model(
-                            self._model,
-                            "best_model",
-                            registered_model_name="attractiveness_classifier",
-                        )
-                        mlflow.log_metric("best_val_loss", best_loss)
-                        logger.info(
-                            f"New best model saved with val loss: {best_loss:.4f}"
-                        )
+                mse_diff = epoch_loss - prev_epoch_loss
 
-                    prev_epoch_loss = epoch_loss
+                mlflow.log_metrics(
+                    {
+                        f"{phase}_loss": epoch_loss,
+                        f"{phase}_mse": computed_metrics["mse"],
+                        f"{phase}_explained_variance": computed_metrics[
+                            "explained_variance"
+                        ],
+                        f"{phase}_mse_diff": mse_diff,
+                    },
+                    step=epoch,
+                )
 
-                # Scheduler step using validation criterion loss
-                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step(epoch_loss)
-                    # Log learning rate
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    mlflow.log_metric("learning_rate", current_lr, step=epoch)
+                logger.info(f"{phase.capitalize()} Results:")
+                logger.info(f"Previous MSE: {prev_epoch_loss:.6f}")
+                logger.info(f"Current MSE:    {epoch_loss:.6f}")
+                logger.info(f"Difference:    {mse_diff:.6f}")
 
-            # Log final best loss
-            mlflow.log_metric("final_best_val_loss", best_loss)
+                for name, value in computed_metrics.items():
+                    if name != "mse":  # Skip MSE since we already logged it
+                        logger.info(f"  {name.upper()}: {value:.4f}")
 
-            # Add best run tag
-            mlflow.set_tag("best_model", "True")
+                if phase == "val" and epoch_loss < best_loss:
+                    best_loss = epoch_loss
+                    self.save()
+                    mlflow.pytorch.log_model(
+                        self._model,
+                        "best_model",
+                        registered_model_name="attractiveness_classifier",
+                    )
+                    mlflow.log_metric("best_val_loss", best_loss)
+                    logger.info(f"New best model saved with val loss: {best_loss:.4f}")
 
-            logger.info(f"Training complete. Best val loss: {best_loss:.4f}")
+                prev_epoch_loss = epoch_loss
+
+            # Scheduler step using validation criterion loss
+            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(epoch_loss)
+                current_lr = optimizer.param_groups[0]["lr"]
+                mlflow.log_metric("learning_rate", current_lr, step=epoch)
+
+        mlflow.log_metric("final_best_val_loss", best_loss)
+
+        mlflow.set_tag("best_model", "True")
+
+        mlflow.end_run()
+
+        logger.info(f"Training complete. Best val loss: {best_loss:.4f}")
 
     def evaluate(self) -> dict:
         if not self.loaded:

@@ -15,7 +15,7 @@ class Logging(BaseModel):
     file: str
 
     @property
-    def prod_config(self) -> dict:
+    def prod_config(self):
         class JsonFormatter(logging.Formatter):
             def format(self, record: logging.LogRecord) -> str:
                 log_entry = {
@@ -62,7 +62,7 @@ class Logging(BaseModel):
         }
 
     @property
-    def dev_config(self) -> str:
+    def dev_config(self):
         import colorlog
 
         return {
@@ -110,7 +110,7 @@ class Logging(BaseModel):
                     "handlers": ["console", "file"],
                     "propagate": False,
                 },
-                "ml": {
+                "mlflow": {
                     "level": self.level,
                     "handlers": ["console", "file"],
                     "propagate": False,

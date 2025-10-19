@@ -6,6 +6,7 @@ repos:
     # Run the linter.
     - id: ruff-check
       args: [ --exit-zero, --respect-gitignore, -s ]
+      pass_filenames: false
     # Run the formatter.
     - id: ruff-format
-      args: [ --exit-zero, --respect-gitignore, -s ]
+      pass_filenames: false
