@@ -13,10 +13,8 @@ jobs:
       run: |
           cd ~/beauty-classifier
           git pull
-    - name: Update dependencies
-      run: . .venv/bin/activate && uv sync --no-dev
-    - name: Pull data
-      run: make pull-data
+    - name: Update project dependencies
+      run: . .venv/bin/activate && make setup-prod
     - name: Stop and restart containers
       run: docker compose down && docker compose pull && docker compose up -d
     - name: Clean up unused images

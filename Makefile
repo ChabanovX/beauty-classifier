@@ -1,19 +1,22 @@
 help:
-	@echo Avaliable commands:
-	@echo ===================================================================================
-	@echo help                 -  show this message
-	@echo setup                -  setup project (sync, run-migrations, pull-data)
-	@echo dev                  -  run project in dev mode (debug messages, sqlite db)
-	@echo run                  -  run project in production mode (info messages, postgres db)
-	@echo test                 -  run tests
-	@echo format               -  format code
-	@echo mlflow-compose-up    -  launch docker compose with mlflow server
-	@echo compose-up           -  launch docker compose
-	@echo train-attractiveness -  train attractiveness model
-	@echo eval-attractiveness  -  evaluate attractiveness model
-	@echo sync                 -  sync dependencies
-	@echo run-migrations       -  run migrations
-	@echo pull-data            -  pull data from remote DVC repository
+	@echo "Avaliable commands:"
+	@echo "==================================================================================="
+	@echo "help                 -  show this message"
+	@echo "setup                -  setup project (sync, run-migrations, pull-data)"
+	@echo "dev                  -  run project in dev mode (debug messages, sqlite db)"
+	@echo "run                  -  run project in production mode (info messages, postgres db)"
+	@echo "test                 -  run tests"
+	@echo "format               -  format code"
+	@echo "mlflow-compose-up    -  launch docker compose with mlflow server"
+	@echo "compose-up           -  launch docker compose"
+	@echo "train-attractiveness -  train attractiveness model"
+	@echo "eval-attractiveness  -  evaluate attractiveness model"
+	@echo "sync                 -  sync dependencies"
+	@echo "run-migrations       -  run migrations"
+	@echo "pull-data            -  pull data from remote DVC repository"
+
+sync-prod:
+	uv sync --no-dev
 
 sync:
 	uv venv .venv
@@ -27,6 +30,8 @@ pull-data:
 
 setup: sync run-migrations pull-data
 	pre-commit install
+
+setup-prod: sync-prod run-migrations pull-data
 
 run:
 	uv run -m src.interfaces.api
