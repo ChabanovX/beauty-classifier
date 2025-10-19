@@ -1,8 +1,3 @@
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 import asyncio
 from logging.config import fileConfig
 
@@ -13,9 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from src.infrastructure.database.models import Base
-import dotenv
-
-dotenv.load_dotenv(".env")
+from src.config import config
 
 
 # this is the Alembic Config object, which provides
@@ -27,16 +20,7 @@ alembic_config = context.config
 if alembic_config.config_file_name is not None:
     fileConfig(alembic_config.config_file_name)
 
-if os.environ.get("DEV"):
-    alembic_config.set_main_option(
-        "sqlalchemy.url",
-        os.environ.get("DB__URL").replace("postgresql://", "postgresql+asyncpg://"),
-    )
-else:
-    alembic_config.set_main_option(
-        "sqlalchemy.url",
-        os.environ.get("DB__DEV_URL").replace("sqlite://", "sqlite+aiosqlite://"),
-    )
+alembic_config.set_main_option("sqlalchemy.url", config.db.connection_string)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

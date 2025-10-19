@@ -1,5 +1,4 @@
-import platform
-import subprocess
+from typing import ClassVar, Literal, Union
 import warnings
 
 from pydantic import BaseModel
@@ -31,17 +30,18 @@ class ML(BaseModel):
 class Auth(BaseModel):
     secret_key: str
     algorithm: str
-    access_token_expire: int
-    salt: str
+    access_token_expire_m: int
+    salt: bytes
+    admin_name: str
+    admin_password: str
 
 
 class Config(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=[".env.example", ".env"],
         env_nested_delimiter="__",
-        cli_implicit_flags=True,
-        cli_parse_args=True,
     )
+    env: Literal["dev", "prod"]
     prod: bool = False
     db: DB
     api: API
@@ -50,6 +50,7 @@ class Config(BaseSettings):
     logging: Logging
 
     def model_post_init(self, context):
+        self.prod = self.env == "prod"
         self.logging.level = "INFO" if self.prod else "DEBUG"
         self.logging.config = (
             self.logging.prod_config if self.prod else self.logging.dev_config
@@ -65,27 +66,16 @@ class Config(BaseSettings):
             or self.db.dev_url.replace("sqlite://", "sqlite+aiosqlite://")
         )
 
+    _instance: ClassVar[Union["Config", None]] = None
 
-config = Config()
+    @classmethod
+    def get(cls):
+        if cls._instance:
+            return cls._instance
+        cls._instance = cls()
+        return cls._instance
+
+
+config = Config.get()
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
-
-
-def remote_vm_reachable():
-    if not config.ml.remote_ip:
-        return True
-    param = "-c" if platform.system().lower() == "Windows" else "-n"
-    command = [
-        "ping",
-        param,
-        "1",
-        config.ml.remote_ip,
-    ]
-    result = subprocess.run(command, capture_output=True, timeout=5).returncode
-    return result == 0
-
-
-if not remote_vm_reachable():
-    raise RuntimeError(
-        f"Remote VM ({config.ml.remote_ip}) not reachable. Make sure it is running or try turning off VPN"
-    )

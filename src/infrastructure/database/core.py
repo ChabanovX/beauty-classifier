@@ -25,11 +25,13 @@ async def db_engine_lifespan():
         pool_pre_ping=True,
     )
     _async_session = async_sessionmaker(_engine, expire_on_commit=False)
-    yield
+    yield _engine
     await _engine.dispose()
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    if _engine is None or _async_session is None:
+        raise RuntimeError("DB engine not initialized")
     async with _async_session() as session:
         async with session.begin():
             yield session

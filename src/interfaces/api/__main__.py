@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.infrastructure.database.core import db_engine_lifespan
 from src.infrastructure.ml_models import load_models
-from src.interfaces.api.v1 import routers
+from src.interfaces.api.v1 import v1_routers
 from src.config import config
 
 
@@ -17,22 +17,26 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(lifespan=lifespan)
+def create_app():
+    app = FastAPI(lifespan=lifespan, root_path="/api/v1")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-for router in routers:
-    app.include_router(router)
+    for router in v1_routers:
+        app.include_router(router)
+
+    return app
+
 
 if __name__ == "__main__":
     uvicorn.run(
-        app,
+        create_app(),
         host=config.api.host,
         port=config.api.port,
         log_config=config.logging.config,

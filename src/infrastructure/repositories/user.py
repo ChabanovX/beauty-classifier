@@ -1,47 +1,27 @@
+from typing import override
 from sqlalchemy import select, delete, insert
 from sqlalchemy.orm import selectinload
 
-from src.infrastructure.database.models.public import Celebrity
-
-from ..database.models import User, Inference
-from .base import BaseRepository
+from src.infrastructure.database.models import User, Inference, Celebrity
+from .crud import CRUDRepository
 
 
-class UserRepository(BaseRepository[User]):
+class UserRepository(CRUDRepository[User]):
     model = User
 
-    async def get(self, by: str | int) -> User | None:
-        """
-        Get user
-
-        Args:
-            by (str | int): User login or ID
-
-        Returns:
-            User | None: User
-        """
-        if isinstance(by, int):
+    @override
+    async def get(self, id_login: str | int) -> User | None:
+        if isinstance(id_login, int):
             column = User.id
-        elif isinstance(by, str):
-            column = User.login
+        elif isinstance(id_login, str):
+            column = User.name
         query = (
             select(User)
             .options(selectinload(User.inferences))
-            .where(column == by)
-            .limit(1)
+            .where(column == id_login)
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
-
-    # async def filter(self, offset, limit):
-    #     query = (
-    #         select(User)
-    #         .options(selectinload(User.inferences))
-    #         .offset(offset)
-    #         .limit(limit)
-    #     )
-    #     result = await self.db.execute(query)
-    #     return list(result.scalars().all())
 
     async def get_inferences(self, id: int) -> list[Inference]:
         query = (
@@ -69,7 +49,7 @@ class UserRepository(BaseRepository[User]):
 
     async def create_inference(
         self,
-        id: int,
+        user_id: int,
         photo: bytes,
         attractiveness: float,
         celebrity_names: list[str],
@@ -80,7 +60,7 @@ class UserRepository(BaseRepository[User]):
         query = (
             insert(Inference)
             .values(
-                user_id=id,
+                user_id=user_id,
                 photo=photo,
                 attractiveness=attractiveness,
                 celebrities=celebrities,

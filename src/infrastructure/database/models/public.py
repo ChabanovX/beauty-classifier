@@ -1,19 +1,14 @@
-from datetime import datetime
+from enum import StrEnum
 
-from sqlalchemy import ForeignKey, LargeBinary, Table, Column
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
+from sqlalchemy import ForeignKey, LargeBinary, Table, Column, Enum
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
-class Base(DeclarativeBase):
-    pass
+from .base import Base, CreatedAtMixin, IDMixin
 
 
-class CreatedAtMixin(Base):
-    __abstract__ = True
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, index=True, server_default=func.now()
-    )
+class Role(StrEnum):
+    USER = "user"
+    ADMIN = "admin"
 
 
 association_table = Table(
@@ -24,19 +19,22 @@ association_table = Table(
 )
 
 
-class User(CreatedAtMixin):
+class User(CreatedAtMixin, IDMixin):
     __tablename__ = "users"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    login: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
     password: Mapped[str] = mapped_column(nullable=False)
+    role: Mapped[Role] = mapped_column(
+        Enum(Role, name="role", create_constraint=True, native_enum=False),
+        nullable=False,
+        default=Role.USER,
+    )
     inferences: Mapped[list["Inference"]] = relationship(
-        back_populates="user", cascade="all, delete", lazy="selectin"
+        back_populates="user", cascade="all, delete-orphan", lazy="selectin"
     )
 
 
-class Celebrity(CreatedAtMixin):
+class Celebrity(CreatedAtMixin, IDMixin):
     __tablename__ = "celebrities"
-    id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(nullable=False, index=True)
     picture: Mapped[bytes] = mapped_column(nullable=False, deferred=True)
     embedding: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
@@ -45,9 +43,8 @@ class Celebrity(CreatedAtMixin):
     )
 
 
-class Inference(CreatedAtMixin):
+class Inference(CreatedAtMixin, IDMixin):
     __tablename__ = "inferences"
-    id: Mapped[int] = mapped_column(primary_key=True)
     attractiveness: Mapped[float] = mapped_column(nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     picture: Mapped[bytes] = mapped_column(nullable=False, deferred=True)

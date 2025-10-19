@@ -1,3 +1,3 @@
 from .user import UserRepository
 from .celebrity import CelebrityRepository
-from .base import BaseRepository
+from .crud import CRUDRepository

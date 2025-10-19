@@ -1,11 +1,9 @@
 from src.infrastructure.ml_models import attractiveness_model  # , looak_a_like_finder
-from src.infrastructure.schemas import Inference
+from src.interfaces.api.schemas import Inference
 
 
 class MLService:
-    def __init__(self):
-        pass
-
+    @staticmethod
     def get_attractiveness(image: bytes) -> float | None:
         if not image:
             return None
@@ -15,6 +13,7 @@ class MLService:
             return None
         return round(predicted_attractiveness, 4)
 
+    @staticmethod
     def get_celebrities(image: bytes) -> list[int] | None:
         return []
         if not image:

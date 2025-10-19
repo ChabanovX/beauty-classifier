@@ -17,6 +17,8 @@ try:
 except ImportError:
     pass
 
+logger = logging.getLogger(__name__)
+
 
 class AttractivenessModel(ModelBase):
     _name: str = "attractiveness_classifier"
@@ -111,7 +113,7 @@ class AttractivenessModel(ModelBase):
             mlflow.log_artifact(__file__, artifact_path="code")
 
             for epoch in range(epochs):
-                logging.info(f"Epoch {epoch + 1}/{epochs}")
+                logger.info(f"Epoch {epoch + 1}/{epochs}")
 
                 for phase, dataloader in [("train", train_loader), ("val", val_loader)]:
                     if phase == "train":
@@ -191,14 +193,14 @@ class AttractivenessModel(ModelBase):
                         step=epoch,
                     )
 
-                    logging.info(f"{phase.capitalize()} Results:")
-                    logging.info(f"Previous MSE: {prev_epoch_loss:.6f}")
-                    logging.info(f"Current MSE:    {epoch_loss:.6f}")
-                    logging.info(f"Difference:    {mse_diff:.6f}")
+                    logger.info(f"{phase.capitalize()} Results:")
+                    logger.info(f"Previous MSE: {prev_epoch_loss:.6f}")
+                    logger.info(f"Current MSE:    {epoch_loss:.6f}")
+                    logger.info(f"Difference:    {mse_diff:.6f}")
 
                     for name, value in computed_metrics.items():
                         if name != "mse":  # Skip MSE since we already logged it
-                            logging.info(f"  {name.upper()}: {value:.4f}")
+                            logger.info(f"  {name.upper()}: {value:.4f}")
 
                     # Save best model based on criterion loss
                     if phase == "val" and epoch_loss < best_loss:
@@ -211,7 +213,7 @@ class AttractivenessModel(ModelBase):
                             registered_model_name="attractiveness_classifier",
                         )
                         mlflow.log_metric("best_val_loss", best_loss)
-                        logging.info(
+                        logger.info(
                             f"New best model saved with val loss: {best_loss:.4f}"
                         )
 
@@ -230,7 +232,7 @@ class AttractivenessModel(ModelBase):
             # Add best run tag
             mlflow.set_tag("best_model", "True")
 
-            logging.info(f"Training complete. Best val loss: {best_loss:.4f}")
+            logger.info(f"Training complete. Best val loss: {best_loss:.4f}")
 
     def evaluate(self) -> dict:
         if not self.loaded:
@@ -289,9 +291,9 @@ class AttractivenessModel(ModelBase):
             final_metrics[name] = metric.compute().item()
 
         # Log results
-        logging.info("Test Results:")
+        logger.info("Test Results:")
         for metric, value in final_metrics.items():
-            logging.info(f"Test {metric.upper()}: {value:.4f}")
+            logger.info(f"Test {metric.upper()}: {value:.4f}")
 
         return final_metrics
 
@@ -307,7 +309,7 @@ class AttractivenessModel(ModelBase):
 
             return 1 + output.item() * 4
         except Exception as e:
-            logging.error(f"Error processing image: {e}")
+            logger.error(f"Error processing image: {e}")
             raise ValueError(f"Could not process image: {e}") from e
 
 

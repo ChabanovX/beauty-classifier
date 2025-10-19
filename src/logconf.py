@@ -23,7 +23,7 @@ class Logging(BaseModel):
                     "level": record.levelname,
                     "logger": record.name,
                     "message": record.getMessage(),
-                    "file": record.filename,
+                    "file": record.pathname,
                     "function": record.funcName,
                     "line": record.lineno,
                 }
@@ -55,7 +55,7 @@ class Logging(BaseModel):
             "loggers": {
                 "uvicorn": {
                     "level": self.level,
-                    "handlers": ["console"],
+                    "handlers": ["console", "file"],
                     "propagate": False,
                 }
             },
