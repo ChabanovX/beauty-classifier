@@ -36,6 +36,9 @@ setup-prod: sync-prod run-migrations pull-data
 run:
 	uv run -m src.interfaces.api
 
+run-prod:
+	uv run -m src.interfaces.api --no-sync
+
 migrate:
 	uv run alembic revision --autogenerate -m "$(m)"
 	@echo Please edit the generated migration file and then run 'uv run alembic upgrade head'

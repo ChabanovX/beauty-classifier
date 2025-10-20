@@ -1,4 +1,4 @@
-dataset/
+datasets/
 .git
 .github
 tests/
@@ -7,3 +7,7 @@ Makefile
 .venv
 __pycache__
 .ipynb_checkpoints
+*.ipynb
+*.py[cod]
+*.log
+.env
