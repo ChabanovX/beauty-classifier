@@ -3,7 +3,6 @@ datasets/
 .github
 tests/
 README.md
-Makefile
 .venv
 __pycache__
 .ipynb_checkpoints
