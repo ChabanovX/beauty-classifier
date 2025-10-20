@@ -19,7 +19,6 @@ sync-prod:
 	uv sync --no-dev
 
 sync:
-	uv venv .venv
 	uv sync
 
 run-migrations:
@@ -44,7 +43,7 @@ migrate:
 	@echo Please edit the generated migration file and then run 'uv run alembic upgrade head'
 
 format:
-	uv run ruff check --fix-only -s && uv run ruff format -s
+	uv run ruff check --fix-only && uv run ruff format
 
 test:
 	uv run pytest
