@@ -51,8 +51,8 @@ A mobile application that uses computer vision to analyze facial features for en
 
 ### Quick Start
 1. `make setup`
-2. `make run-dev`
-Explore make commands with `make help`
+2. `make run`
+Run `make help` for more commands
 
 ### Testing
 Run `make test` to execute test suite

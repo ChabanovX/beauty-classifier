@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "-m", "src.interfaces.cli"]
+CMD ["uv", "run", "-m", "src.interfaces.api", "--no-sync"]

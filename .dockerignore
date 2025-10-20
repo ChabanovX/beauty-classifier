@@ -1,11 +1,9 @@
 dataset/
 .git
 .github
-.dvc
 tests/
 README.md
 Makefile
 .venv
 __pycache__
 .ipynb_checkpoints
-*.dvc
