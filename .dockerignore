@@ -3,10 +3,15 @@ datasets/
 .github
 tests/
 README.md
+CONTRIBUTING.md
+.env.example
 .venv
 __pycache__
 .ipynb_checkpoints
 *.ipynb
 *.py[cod]
 *.log
-.env
+*.sqlite3
+.ruff_cache
+.git
+.github
