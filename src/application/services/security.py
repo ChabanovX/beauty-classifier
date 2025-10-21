@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 
 import jwt
@@ -7,7 +7,7 @@ from pwdlib import PasswordHash
 from pydantic import ValidationError
 
 from src.config import config
-from src.interfaces.api.schemas import Token
+from src.interfaces.api.v1.schemas import Token
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +28,14 @@ class SecurityService:
         token_data = data.copy()
 
         now = int(datetime.now(timezone.utc).timestamp())
-        expire_delta = timedelta(minutes=config.auth.access_token_expire_m).seconds
+        expire_delta = config.auth.access_token_expire_m * 60
         token_data.update({"iat": now, "exp": now + expire_delta, "type": "Bearer"})
 
         jwt_token = jwt.encode(
             token_data, config.auth.secret_key, config.auth.algorithm
         )
 
-        token_data["raw_token"] = jwt_token
+        token_data["token"] = jwt_token
         return Token(**token_data)
 
     @staticmethod
@@ -47,11 +47,12 @@ class SecurityService:
                 algorithms=[config.auth.algorithm],
                 options={"verify_exp": True},
             )
-            jwt_token.update({"type": "Bearer", "raw_token": raw_token})
+            jwt_token.update({"type": "Bearer", "token": raw_token})
             return Token(**jwt_token)
         except (InvalidTokenError, ValidationError) as e:
             if isinstance(e, ValidationError):
-                logger.debug(f"Unable to corece to Token model: {jwt_token}")
+                logger.debug(f"Unable to coerce to Token model: {jwt_token}")
+                raise
             elif isinstance(e, InvalidTokenError):
                 logger.debug(f"Invalid token: {raw_token}")
             return None

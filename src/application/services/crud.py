@@ -25,11 +25,11 @@ class CRUDService(ABC, Generic[RepositoryType, ReadSchemaType]):
             return None
         return self.read_schema.model_validate(db_model)
 
-    async def find(self, page: int = 1, limit: int = 100):
+    async def find_many(self, page: int = 1, limit: int = 100):
         offset = (page - 1) * limit
         return [
             self.read_schema.model_validate(user)
-            for user in await self.repository.find(offset, limit)
+            for user in await self.repository.find_many(offset, limit)
         ]
 
     async def delete(self, id: int):

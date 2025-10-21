@@ -19,7 +19,7 @@ _async_session: async_sessionmaker | None = None
 async def db_engine_lifespan():
     global _engine, _async_session
     _engine = create_async_engine(
-        config.db.connection_string,
+        config.db.uri,
         pool_size=config.db.pool_size,
         pool_timeout=config.db.pool_timeout,
         pool_pre_ping=True,

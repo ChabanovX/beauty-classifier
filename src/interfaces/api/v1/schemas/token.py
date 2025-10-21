@@ -10,5 +10,5 @@ class TokenData(BaseModel):
 
 
 class Token(TokenData):
-    raw_token: str
+    token: str
     type: str

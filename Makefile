@@ -33,10 +33,10 @@ setup: sync run-migrations pull-data
 setup-prod: sync-prod run-migrations pull-data
 
 run:
-	uv run -m src.interfaces.api
+	uv run -m src.interfaces.api.v1
 
 run-prod:
-	uv run -m src.interfaces.api --no-sync
+	uv run -m src.interfaces.api.v1 --no-sync
 
 migrate:
 	uv run alembic revision --autogenerate -m "$(m)"

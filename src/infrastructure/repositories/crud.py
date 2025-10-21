@@ -23,7 +23,7 @@ class CRUDRepository(ABC, Generic[ModelType]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def find(self, offset: int, limit: int):
+    async def find_many(self, offset: int, limit: int):
         query = select(self.model).offset(offset).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all())

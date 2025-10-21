@@ -20,7 +20,7 @@ alembic_config = context.config
 if alembic_config.config_file_name is not None:
     fileConfig(alembic_config.config_file_name)
 
-alembic_config.set_main_option("sqlalchemy.url", config.db.connection_string)
+alembic_config.set_main_option("sqlalchemy.url", config.db.uri)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

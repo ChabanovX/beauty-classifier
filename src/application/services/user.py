@@ -4,7 +4,7 @@ import logging
 from fastapi import Depends
 
 from src.infrastructure.repositories import UserRepository
-from src.interfaces.api.schemas import IDMixin, UserCreate, UserRead, Inference
+from src.interfaces.api.v1.schemas import UserCreate, UserRead, Inference
 from .crud import CRUDService
 from .security import SecurityService
 
@@ -18,19 +18,19 @@ class UserService(CRUDService[UserRepository, UserRead]):
         self.read_schema = UserRead
 
     @override
-    async def create(self, data: UserCreate):
-        data.password = SecurityService.hash_password(data.password)
-        user = await self.repository.create(**data.model_dump())
+    async def create(self, **data):
+        data["password"] = SecurityService.hash_password(data["password"])
+        user = await self.repository.create(**data)
         if not user:
             return None
-        return IDMixin.model_validate(user)
+        return UserRead.model_validate(user)
 
     @override
     async def get(self, id_login: int | str):
         user = await self.repository.get(id_login)
         if not user:
             return None
-        return self.read_schema.model_validate(user)
+        return UserRead.model_validate(user)
 
     async def get_inferences(self, id: int):
         return [

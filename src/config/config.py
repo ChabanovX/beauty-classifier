@@ -1,4 +1,4 @@
-from typing import ClassVar, Literal, Union
+from typing import Literal
 import warnings
 
 from pydantic import BaseModel
@@ -8,12 +8,12 @@ from .logconf import Logging
 
 
 class DB(BaseModel):
-    url: str
-    dev_url: str
+    prod_uri: str
+    dev_uri: str
     connection_timeout: int
     pool_size: int
     pool_timeout: int
-    connection_string: str = "unset"
+    uri: str | None = None
 
 
 class API(BaseModel):
@@ -51,31 +51,24 @@ class Config(BaseSettings):
 
     def model_post_init(self, context):
         self.prod = self.env == "prod"
-        self.logging.level = "INFO" if self.prod else "DEBUG"
+        self.logging.level = self.prod and "INFO" or "DEBUG"
         self.logging.config = (
-            self.logging.prod_config if self.prod else self.logging.dev_config
+            self.prod and self.logging.prod_config or self.logging.dev_config
         )
         self.logging.file = (
             self.prod
             and self.logging.file
             or self.logging.file.replace(".log", "_dev.log")
         )
-        self.db.connection_string = (
+        self.db.uri = (
             self.prod
-            and self.db.url.replace("postgresql://", "postgresql+asyncpg://")
-            or self.db.dev_url.replace("sqlite://", "sqlite+aiosqlite://")
+            and self.db.prod_uri.replace("postgresql://", "postgresql+asyncpg://")
+            or self.db.dev_uri.replace("sqlite://", "sqlite+aiosqlite://")
         )
-
-    _instance: ClassVar[Union["Config", None]] = None
-
-    @classmethod
-    def get(cls):
-        if cls._instance:
-            return cls._instance
-        cls._instance = cls()
-        return cls._instance
+        self.db.__delattr__("prod_uri")
+        self.db.__delattr__("dev_uri")
 
 
-config = Config.get()
+config = Config()
 
 warnings.simplefilter(action="ignore", category=FutureWarning)

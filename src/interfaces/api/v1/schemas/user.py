@@ -7,7 +7,7 @@ from .celebrity import Celebrity
 
 
 class Inference(Base, IDMixin):
-    user_id: str = Field(examples=[123], description="User ID")
+    user_id: int = Field(description="User ID")
     celebrities: list[Celebrity] = Field(description="List of celebrities")
     attractiveness: float = Field(examples=[4.0], description="Attractiveness score")
     date: datetime = Field(examples=[datetime.now()], description="Inference date")
@@ -31,4 +31,4 @@ class UserUpdate(UserBase):
 
 
 class UserRead(IDMixin, UserBase):
-    inferences: list[Inference] = Field(description="List of inferences")
+    inferences: list[Inference] = Field([], description="List of inferences")

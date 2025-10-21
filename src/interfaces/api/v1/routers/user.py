@@ -1,8 +1,14 @@
 from fastapi import APIRouter, status, Depends, Query
 
 from src.application.services import UserService
-from src.interfaces.api.schemas import UserCreate, UserUpdate, UserRead, Token, IDMixin
-from src.interfaces.api.exc import (
+from src.interfaces.api.v1.schemas import (
+    UserCreate,
+    UserUpdate,
+    UserRead,
+    Token,
+    IDMixin,
+)
+from src.interfaces.api.v1.exc import (
     NotFoundHTTPException,
     ObjInUseHTTPException,
     InvalidDataHTTPException,
@@ -15,12 +21,12 @@ user_router = APIRouter(
 )
 
 
-@user_router.post("/")
+@user_router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user: UserCreate,
+    data: UserCreate,
     service: UserService = Depends(),
 ) -> IDMixin:
-    id = await service.create(user)
+    id = await service.create(**data.model_dump())
     if not id:
         raise AlreadyExistsHTTPException
     return id
@@ -32,7 +38,7 @@ async def get_users(
     limit: int = Query(100, description="Items per page"),
     service: UserService = Depends(),
 ) -> list[UserRead]:
-    return await service.find(page, limit)
+    return await service.find_many(page, limit)
 
 
 @user_router.get("/{id}")
@@ -50,7 +56,7 @@ async def get_user(
 async def update_user(
     id: int, user: UserUpdate, service: UserService = Depends()
 ) -> None:
-    res = await service.update(id, user)
+    res = await service.update(id, **user.model_dump())
     if res is None:
         raise NotFoundHTTPException
     if res is False:

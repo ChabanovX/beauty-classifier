@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends
 
 from src.application.services import UserService
-from src.interfaces.api.exc import (
+from src.interfaces.api.v1.exc import (
     InvalidCredentialsHTTPException,
     AlreadyExistsHTTPException,
 )
-from src.interfaces.api.schemas import UserCreate, Token
+from src.interfaces.api.v1.schemas import UserCreate, Token
 
 auth_router = APIRouter(prefix="/auth", tags=["Auth"])
 

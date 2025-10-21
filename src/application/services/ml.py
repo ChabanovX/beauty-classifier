@@ -1,5 +1,5 @@
 from src.infrastructure.ml_models import attractiveness_model  # , looak_a_like_finder
-# from src.interfaces.api.schemas import Inference
+# from src.interfaces.api.v1.schemas import Inference
 
 
 class MLService:

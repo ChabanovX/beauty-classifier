@@ -1,24 +1,12 @@
 import logging
-from fastapi import Request, HTTPException, status
+
+from fastapi import Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.application.services import SecurityService
-from src.interfaces.api.schemas.token import Token
+from src.interfaces.api.v1.schemas.token import Token
 
-
-class UnauthorizedException(HTTPException):
-    def __init__(self):
-        super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization."
-        )
-
-
-class ForbiddenException(HTTPException):
-    def __init__(self):
-        super().__init__(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions."
-        )
-
+from .exc import UnauthorizedException, ForbiddenException
 
 logger = logging.getLogger(__name__)
 
@@ -55,4 +43,6 @@ class JWTAuth(HTTPBearer):
         logger.debug(
             f"Access denied. User <{token.user_id}> tried to access <{requested_id}>"
         )
-        raise ForbiddenException
+        raise ForbiddenException(
+            requested=f"user/{requested_id}", available=f"user/{token.user_id}"
+        )

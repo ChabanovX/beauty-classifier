@@ -1,6 +1,6 @@
 from fastapi import Depends
 
-from src.interfaces.api.schemas import Celebrity
+from src.interfaces.api.v1.schemas import Celebrity
 from src.infrastructure.repositories import CelebrityRepository
 from .crud import CRUDService
 
