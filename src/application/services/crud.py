@@ -1,15 +1,15 @@
 from abc import ABC
-from typing import TypeVar, Generic
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 from src.infrastructure.repositories import CRUDRepository
 
-RepositoryType = TypeVar("RepositoryType", bound=CRUDRepository)
-ReadSchemaType = TypeVar("ReadSchemaType", bound=BaseModel)
+RepositoryType = TypeVar("RepositoryType")
+ReadSchemaType = TypeVar("ReadSchemaType")
 
 
-class CRUDService(ABC, Generic[RepositoryType, ReadSchemaType]):
+class CRUDService[RepositoryType: CRUDRepository, ReadSchemaType: BaseModel](ABC):
     repository: RepositoryType
     read_schema: type[ReadSchemaType]
 

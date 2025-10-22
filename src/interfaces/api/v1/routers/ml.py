@@ -7,6 +7,8 @@ ml_router = APIRouter(prefix="/ml", tags=["ML"])
 
 @ml_router.post("/attractiveness")
 async def predict(image_file: UploadFile) -> AttractivenessPrediction:
+    if not image_file.content_type:
+        raise HTTPException(status_code=400, detail="Invalid file")
     if not image_file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=400, detail="File must be an image (JPEG, PNG, JPG, WEBP)"

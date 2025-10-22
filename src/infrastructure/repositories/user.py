@@ -34,7 +34,7 @@ class UserRepository(CRUDRepository[User]):
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_photo(self, id: int) -> bytes:
+    async def get_photo(self, id: int) -> bytes | None:
         query = (
             select(Inference)
             .where(Inference.user_id == id)

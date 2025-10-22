@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from sqlalchemy import select, delete, update, insert
 from sqlalchemy.exc import IntegrityError
@@ -9,10 +9,10 @@ from fastapi import Depends
 from src.infrastructure.database.core import get_session
 from src.infrastructure.database.models.base import IDMixin
 
-ModelType = TypeVar("Model", bound=IDMixin)
+ModelType = TypeVar("ModelType")
 
 
-class CRUDRepository(ABC, Generic[ModelType]):
+class CRUDRepository[ModelType: IDMixin](ABC):
     model: type[ModelType]
 
     def __init__(self, db: AsyncSession = Depends(get_session)):

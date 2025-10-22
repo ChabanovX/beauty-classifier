@@ -13,7 +13,7 @@ class DB(BaseModel):
     connection_timeout: int
     pool_size: int
     pool_timeout: int
-    uri: str | None = None
+    uri: str = ""
 
 
 class API(BaseModel):
