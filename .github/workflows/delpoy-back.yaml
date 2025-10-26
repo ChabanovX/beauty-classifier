@@ -13,4 +13,4 @@ jobs:
       run: |
           git pull
     - name: Stop and restart containers
-      run: docker compose down && docker compose build && docker compose up --remove-orphans
+      run: docker compose down && docker compose build && docker compose up --remove-orphans -d
