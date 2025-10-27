@@ -4,9 +4,7 @@ WORKDIR /app
 
 RUN apt update && apt install -y make
 
-COPY pyproject.toml .
-
-COPY uv.lock .
+COPY pyproject.toml uv.lock ./
 
 RUN uv venv && . .venv/bin/activate && uv sync --no-dev
 
