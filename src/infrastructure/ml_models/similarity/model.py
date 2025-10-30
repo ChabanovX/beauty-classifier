@@ -1,39 +1,47 @@
 import io
-import logging
 import os
-from typing import List, Tuple, Dict, Optional, Any
+import json
+import logging
+import warnings
+from datetime import datetime
+from typing import List, Dict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 from torchvision import models, transforms
-from tqdm import tqdm
 from PIL import Image
 
-from facenet_pytorch import MTCNN
 from ..base_model import ModelBase
-from .dataset import get_data_loaders
+
+try:
+    import mlflow
+    import torchmetrics
+    from tqdm import tqdm
+    from .dataset import get_data_loaders  # <- этот get_data_loaders из файла выше
+except ImportError:
+    pass
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+logger = logging.getLogger(__name__)
 
 
-class CelebrityLookalikeModel(ModelBase):
+class CelebrityMatcherModel(ModelBase):
+    """
+    Классификация на множество знаменитостей.
+    - Бекбон ResNet50 с предобученными весами (замораживаем параметры)
+    - Кастомный голова: Linear -> ReLU -> Dropout -> Linear(num_classes), Softmax в инференсе
+    - Лосс: CrossEntropyLoss
+    - Метрики: accuracy@1, accuracy@5, macro-F1, пер-класс accuracy (логгинг в mlflow)
+    """
 
-    _name: str = "celebrity_lookalike"
+    _name: str = "celebrity_matcher"
 
-    def __init__(
-        self,
-        num_classes: Optional[int] = None,
-        class_map: Optional[Dict[int, str]] = None,
-        freeze_backbone: bool = True,
-        mtcnn_device: Optional[torch.device] = None,
-    ) -> None:
+    def __init__(self, out_features: int = 512, top_k: int = 5):
         super().__init__()
+        self.top_k = top_k
 
-        # Keep or override device from ModelBase
-        self._device = getattr(self, "_device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-        self._mtcnn_device = mtcnn_device or self._device
-
-        # image transform applied to face crops
+        # Трансформации на инференсе
         self._transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
@@ -45,330 +53,300 @@ class CelebrityLookalikeModel(ModelBase):
             ]
         )
 
-        # face detector (optional)
-        if MTCNN is not None:
-            self._mtcnn = MTCNN(keep_all=False, device=self._mtcnn_device)
-        else:
-            self._mtcnn = None
+        self._classes_file = os.path.join(
+            "datasets/celebs", "labels/processed", "classes.json"
+        )
+        self.id2label = None
+        if os.path.exists(self._classes_file):
+            with open(self._classes_file, "r", encoding="utf-8") as f:
+                _id2label: Dict[str, str] = json.load(f)
+            self.id2label = {int(k): v for k, v in _id2label.items()}
+        self.num_classes = len(self.id2label) if self.id2label else None
 
-        # backbone
         backbone = models.resnet50(weights="IMAGENET1K_V2")
-        if freeze_backbone:
-            for param in backbone.parameters():
-                param.requires_grad = False
+        for p in backbone.parameters():
+            p.requires_grad = False
 
         in_features = backbone.fc.in_features
-        # placeholder head; will be replaced when num_classes known
-        self._num_classes = num_classes or 1000
-        backbone.fc = nn.Linear(in_features, self._num_classes)
+        classifier_out = self.num_classes if self.num_classes else 2
 
-        self._model = backbone.to(self._device)
+        backbone.fc = nn.Sequential(
+            nn.Linear(in_features, out_features),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(out_features, classifier_out),
+        )
 
-        # class index -> name mapping
-        self.class_map = class_map
-
+        self._model = backbone
+        self._model.to(self._device)
         self.loaded = False
 
-    # ------------------ compatibility wrappers ------------------
-    def save(self) -> None:
-        """Save model and metadata to the default models/<name>.pt path.
-
-        This overrides ModelBase.save() to store a payload containing
-        `model_state`, `num_classes` and `class_map` for easier reloading.
-        """
-        if self._model is None:
-            raise RuntimeError("No model to save")
-
-        os.makedirs(self._models_dir, exist_ok=True)
-        save_path = os.path.join(self._models_dir, f"{self._name}.pt")
-
-        payload = {
-            "model_state": self._model.state_dict(),
-            "num_classes": self._num_classes,
-            "class_map": self.class_map,
-        }
-        torch.save(payload, save_path)
-        logging.info(f"Model saved to {save_path}")
-
-    def load(self, path: Optional[str] = None) -> None:
-        """Load model state from given path or default models/<name>.pt."""
-        if self._model is None:
-            raise RuntimeError("Model architecture not initialized before load()")
-
-        load_path = path or os.path.join(self._models_dir, f"{self._name}.pt")
-        logging.debug(f"Loading {self._name} from {load_path}")
-
-        state = torch.load(load_path, map_location=self._device)
-
-        # Support payload with metadata or raw state_dict
-        if isinstance(state, dict) and "model_state" in state:
-            model_state = state["model_state"]
-            file_num_classes = state.get("num_classes")
-            file_class_map = state.get("class_map")
-        else:
-            model_state = state
-            file_num_classes = None
-            file_class_map = None
-
-        # If payload contains num_classes and differs from current, recreate head
-        if file_num_classes and file_num_classes != self._num_classes:
-            self.set_num_classes(file_num_classes)
-
-        self._model.load_state_dict(model_state)
-        # Restore class_map if present
-        if file_class_map is not None:
-            self.class_map = file_class_map
-
+    # ---- helpers ----
+    def _ensure_head(self, num_classes: int, out_features: int = 512):
+        """Переинициализировать голову, если число классов стало известно/изменилось."""
+        if self.num_classes == num_classes:
+            return
+        in_features = (
+            self._model.fc[0].in_features
+            if isinstance(self._model.fc, nn.Sequential)
+            else self._model.fc.in_features
+        )
+        self._model.fc = nn.Sequential(
+            nn.Linear(in_features, out_features),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(out_features, num_classes),
+        )
         self._model.to(self._device)
-        self._model.eval()
-        self.loaded = True
-        logging.info(f"{self._name} loaded from {load_path} to device {self._device}")
+        self.num_classes = num_classes
+        logger.info(f"Classifier head reinitialized for {num_classes} classes.")
 
-    # ------------------ model utilities ------------------
-    def set_num_classes(self, num_classes: int) -> None:
-        """(Re)create classifier head for given number of classes."""
-        in_features = self._model.fc.in_features
-        self._model.fc = nn.Linear(in_features, num_classes).to(self._device)
-        self._num_classes = num_classes
+    def _setup_metrics(self, device, num_classes: int):
+        acc1 = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes).to(
+            device
+        )
+        acc5 = torchmetrics.Accuracy(
+            task="multiclass", num_classes=num_classes, top_k=5
+        ).to(device)
+        f1m = torchmetrics.F1Score(
+            task="multiclass", num_classes=num_classes, average="macro"
+        ).to(device)
+        return nn.ModuleDict({"acc1": acc1, "acc5": acc5, "f1_macro": f1m})
 
-    @staticmethod
-    def _topk_accuracy(output: torch.Tensor, target: torch.Tensor, k: int = 5) -> float:
-        """Compute top-k accuracy for one batch."""
-        with torch.no_grad():
-            _, preds = output.topk(k, dim=1, largest=True, sorted=True)
-            target = target.view(-1, 1).expand_as(preds)
-            correct = (preds == target).any(dim=1).float().sum().item()
-            return correct / output.size(0)
-
-    # ------------------ training loop (compatible with ModelBase.train signature) ------------------
     def train(
         self,
-        train_loader: Optional[DataLoader] = None,
-        val_loader: Optional[DataLoader] = None,
         epochs: int = 10,
         lr: float = 1e-3,
-        criterion: Optional[nn.Module] = None,
-        optimizer: Optional[torch.optim.Optimizer] = None,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        criterion: nn.Module = nn.CrossEntropyLoss(),
+        optimizer: torch.optim.Optimizer | None = None,
+        scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
     ) -> None:
-        """
-        Train the model. Signature matches ModelBase expectations but keeps the
-        convenience of falling back to internal `get_data_loaders()` when
-        loaders are not provided.
-        """
-        if not self._model:
-            raise ValueError("Model not initialized")
+        if not self.loaded:
+            try:
+                self.load()
+            except Exception:
+                logger.warning("No existing checkpoint. Training from scratch.")
 
-        # If loaders not provided, try to get them from dataset helper
-        if train_loader is None or val_loader is None:
-            loaders = get_data_loaders()
-            if len(loaders) >= 2:
-                train_loader, val_loader = loaders[0], loaders[1]
-            else:
-                raise ValueError("train_loader and val_loader must be provided")
+        train_loader, val_loader = get_data_loaders()
+        num_classes = train_loader.dataset.num_classes
 
-        if criterion is None:
-            criterion = nn.CrossEntropyLoss()
+        self._ensure_head(num_classes=num_classes)
+
+        if hasattr(train_loader.dataset, "id2label"):
+            self.id2label = train_loader.dataset.id2label
+
         if optimizer is None:
             optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=0.1, patience=5
+                optimizer, mode="max", factor=0.1, patience=5
             )
 
-        # Attempt to infer classes from dataset if not provided
-        if hasattr(train_loader.dataset, "classes") and self._num_classes == 1000:
-            self._num_classes = len(train_loader.dataset.classes)
-            self.set_num_classes(self._num_classes)
+        metrics = self._setup_metrics(self._device, num_classes)
 
-        best_val_loss = float("inf")
+        best_acc = 0.0
+        mlflow.start_run(
+            run_name=f"CelebrityMatcher {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        mlflow.log_params(
+            {
+                "epochs": epochs,
+                "learning_rate": lr,
+                "criterion": criterion.__class__.__name__,
+                "optimizer": optimizer.__class__.__name__,
+                "scheduler": scheduler.__class__.__name__ if scheduler else "None",
+                "model_name": "resnet50",
+                "out_features": 512,
+                "fine_tuning": "feature_extraction",
+                "num_classes": num_classes,
+                "top_k": self.top_k,
+            }
+        )
+        mlflow.set_tag("model_architecture", "resnet50_frozen_fc_custom")
+        mlflow.log_artifact(__file__, artifact_path="code")
 
         for epoch in range(epochs):
-            logging.info(f"Epoch {epoch + 1}/{epochs}")
-
+            logger.info(f"Epoch {epoch + 1}/{epochs}")
             for phase, loader in [("train", train_loader), ("val", val_loader)]:
                 if phase == "train":
                     self._model.train()
                 else:
                     self._model.eval()
 
+                # reset metrics
+                for m in metrics.values():
+                    m.reset()
+
                 running_loss = 0.0
-                running_acc = 0.0
-                running_top5 = 0.0
                 total = 0
 
-                progress_bar = tqdm(loader, desc=f"{phase.capitalize()} Epoch {epoch + 1}")
-
-                for inputs, labels in progress_bar:
-                    inputs = inputs.to(self._device)
-                    labels = labels.to(self._device).long()
-                    batch_size = inputs.size(0)
-                    total += batch_size
+                pbar = tqdm(loader, desc=f"{phase.capitalize()} Epoch {epoch + 1}")
+                for images, labels in pbar:
+                    images = images.to(self._device)
+                    labels = labels.to(self._device)
+                    bs = images.size(0)
+                    total += bs
 
                     if phase == "train":
                         optimizer.zero_grad()
 
                     with torch.set_grad_enabled(phase == "train"):
-                        outputs = self._model(inputs)  # [batch, num_classes]
-                        loss = criterion(outputs, labels)
-
+                        logits = self._model(images)
+                        loss = criterion(logits, labels)
                         if phase == "train":
                             loss.backward()
                             optimizer.step()
 
-                    running_loss += loss.item() * batch_size
+                    running_loss += loss.item() * bs
 
-                    # accuracy
-                    preds = outputs.argmax(dim=1)
-                    running_acc += (preds == labels).sum().item()
+                    preds = torch.argmax(logits, dim=1)
+                    # обновим метрики
+                    metrics["acc1"].update(preds, labels)
+                    # для top-5 передадим логиты, torchmetrics сам применит top_k
+                    metrics["acc5"].update(logits, labels)
+                    metrics["f1_macro"].update(preds, labels)
 
-                    # top-5
-                    running_top5 += self._topk_accuracy(outputs, labels, k=5) * batch_size
-
-                    avg_loss = running_loss / total
-                    avg_acc = running_acc / total
-                    avg_top5 = running_top5 / total
-
-                    progress_bar.set_postfix(
-                        {"loss": f"{avg_loss:.4f}", "acc": f"{avg_acc:.4f}", "top5": f"{avg_top5:.4f}"}
+                    pbar.set_postfix(
+                        {
+                            "loss": f"{loss.item():.4f}",
+                            "acc1": f"{metrics['acc1'].compute().item():.4f}",
+                        }
                     )
 
-                epoch_loss = running_loss / total
-                epoch_acc = running_acc / total
-                epoch_top5 = running_top5 / total
+                epoch_loss = running_loss / max(1, total)
+                computed = {name: m.compute().item() for name, m in metrics.items()}
 
-                logging.info(f"{phase.capitalize()} Loss: {epoch_loss:.6f}")
-                logging.info(f"{phase.capitalize()} Acc:  {epoch_acc:.4f}")
-                logging.info(f"{phase.capitalize()} Top-5: {epoch_top5:.4f}")
+                # Логгинг
+                mlflow.log_metrics(
+                    {
+                        f"{phase}_loss": epoch_loss,
+                        f"{phase}_acc1": computed["acc1"],
+                        f"{phase}_acc5": computed["acc5"],
+                        f"{phase}_f1_macro": computed["f1_macro"],
+                    },
+                    step=epoch,
+                )
 
-                # save best validation model
-                if phase == "val" and epoch_loss < best_val_loss:
-                    best_val_loss = epoch_loss
-                    self.save()
-                    logging.info(f"New best model saved with val loss: {best_val_loss:.4f}")
+                logger.info(
+                    f"{phase}: loss={epoch_loss:.4f} acc1={computed['acc1']:.4f} "
+                    f"acc5={computed['acc5']:.4f} f1_macro={computed['f1_macro']:.4f}"
+                )
 
-            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                scheduler.step(epoch_loss)
+                if phase == "val":
+                    # сохраняем лучший по acc1
+                    if computed["acc1"] > best_acc:
+                        best_acc = computed["acc1"]
+                        self.save()
+                        try:
+                            mlflow.pytorch.log_model(
+                                self._model,
+                                "best_model",
+                                registered_model_name=self._name,
+                            )
+                        except Exception:
+                            # На локалке без MLflow Model Registry — просто пропустим
+                            pass
+                        mlflow.log_metric("best_val_acc1", best_acc)
+                        logger.info(
+                            f"New best model saved with val acc1: {best_acc:.4f}"
+                        )
 
-        logging.info(f"Training complete. Best val loss: {best_val_loss:.4f}")
+                    # шаг планировщика по валидационной метрике
+                    if isinstance(
+                        scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+                    ):
+                        scheduler.step(computed["acc1"])
+                        mlflow.log_metric(
+                            "learning_rate", optimizer.param_groups[0]["lr"], step=epoch
+                        )
 
-    # ------------------ evaluation (compatible with ModelBase.evaluate) ------------------
-    def evaluate(self, test_loader: Optional[DataLoader] = None) -> Dict[str, Any]:
-        """Evaluate using the provided test_loader. If not given, tries to
-        get test loader from `get_data_loaders()`.
-        """
-        if not self._model:
-            raise ValueError("Model not loaded")
+        mlflow.log_metric("final_best_val_acc1", best_acc)
+        mlflow.set_tag("best_model", "True")
+        mlflow.end_run()
+        logger.info(f"Training complete. Best val acc@1: {best_acc:.4f}")
 
-        if test_loader is None:
-            loaders = get_data_loaders()
-            if len(loaders) >= 3:
-                test_loader = loaders[2]
-            else:
-                logging.warning("get_data_loaders did not return a test loader. Skipping evaluation.")
-                return {}
+    def evaluate(self) -> dict:
+        if not self.loaded:
+            self.load()
 
         self._model.eval()
+        _, test_loader = get_data_loaders()
+        num_classes = test_loader.dataset.num_classes
+        metrics = self._setup_metrics(self._device, num_classes)
 
-        running_acc = 0.0
-        running_top5 = 0.0
+        running_loss = 0.0
         total = 0
+        criterion = nn.CrossEntropyLoss()
 
+        pbar = tqdm(test_loader, desc="Evaluating", leave=True)
         with torch.no_grad():
-            for inputs, labels in tqdm(test_loader, desc="Evaluating"):
-                inputs = inputs.to(self._device)
-                labels = labels.to(self._device).long()
-                batch_size = inputs.size(0)
-                total += batch_size
+            for images, labels in pbar:
+                images = images.to(self._device)
+                labels = labels.to(self._device)
+                bs = images.size(0)
+                total += bs
 
-                outputs = self._model(inputs)
-                preds = outputs.argmax(dim=1)
+                logits = self._model(images)
+                loss = criterion(logits, labels)
+                running_loss += loss.item() * bs
 
-                running_acc += (preds == labels).sum().item()
-                running_top5 += self._topk_accuracy(outputs, labels, k=5) * batch_size
+                preds = torch.argmax(logits, dim=1)
+                metrics["acc1"].update(preds, labels)
+                metrics["acc5"].update(logits, labels)
+                metrics["f1_macro"].update(preds, labels)
 
-        metrics = {
-            "accuracy": running_acc / total if total > 0 else 0.0,
-            "top5": running_top5 / total if total > 0 else 0.0,
-        }
+                pbar.set_postfix(
+                    {
+                        "loss": f"{loss.item():.4f}",
+                        "acc1": f"{metrics['acc1'].compute().item():.4f}",
+                    }
+                )
 
-        logging.info("Test Results:")
-        for k, v in metrics.items():
-            logging.info(f"  {k}: {v:.4f}")
+        final = {name: m.compute().item() for name, m in metrics.items()}
+        final["loss"] = running_loss / max(1, total)
 
-        return metrics
+        logger.info("Test Results:")
+        for k, v in final.items():
+            logger.info(f"{k}: {v:.4f}")
 
-    # ------------------ inference (compatible with ModelBase.predict) ------------------
-    def _detect_and_crop(self, image: Image.Image) -> Image.Image:
-        """Detect a single face and return cropped PIL image. If no detector, returns original image."""
-        if self._mtcnn is None:
-            # No detector installed — assume image already is a face
-            return image
+        return final
 
-        try:
-            face = self._mtcnn(image)
-            if face is None:
-                raise ValueError("No face detected")
-
-            face_pil = transforms.ToPILImage()(face)
-            return face_pil
-        except Exception as e:
-            raise ValueError(f"Face detection failed: {e}") from e
-
-    def predict(self, input_data: Any, topk: int = 5) -> List[Tuple[str, float]]:
-        """Return top-k (name, probability) pairs.
-
-        input_data may be:
-          - raw bytes of an image
-          - PIL.Image.Image
-          - path to image file (str)
-
-        If class_map is not available, returns indices as strings.
+    def predict(self, image: bytes, top_k: int | None = None) -> List[Dict[str, float]]:
         """
-        if not self._model:
-            raise ValueError("Model not loaded")
+        Возвращает top-k [(label, prob)], отсортированные по убыванию вероятности.
+        """
+        if not self.loaded:
+            self.load()
 
-        # Normalize input types into bytes
-        try:
-            if isinstance(input_data, bytes):
-                img_bytes = input_data
-            elif isinstance(input_data, Image.Image):
-                buf = io.BytesIO()
-                input_data.save(buf, format="PNG")
-                img_bytes = buf.getvalue()
-            elif isinstance(input_data, str):
-                with open(input_data, "rb") as f:
-                    img_bytes = f.read()
+        if self.id2label is None:
+            # попробуем прочитать classes.json (нужно для маппинга id->имя)
+            if os.path.exists(self._classes_file):
+                with open(self._classes_file, "r", encoding="utf-8") as f:
+                    _id2label = json.load(f)
+                self.id2label = {int(k): v for k, v in _id2label.items()}
             else:
-                raise ValueError("Unsupported input_data type for predict()")
+                raise ValueError("id2label mapping not found. Did you train the model?")
 
-            with Image.open(io.BytesIO(img_bytes)) as img:
-                img = img.convert("RGB")
+        self._model.eval()
+        k = top_k or self.top_k
+        try:
+            with Image.open(io.BytesIO(image)) as img:
+                img_t = self._transform(img).unsqueeze(0).to(self._device)
 
-                # detect & crop
-                try:
-                    face = self._detect_and_crop(img)
-                except Exception as e:
-                    logging.warning(f"Face detection failed, using full image: {e}")
-                    face = img
-
-                tensor = self._transform(face).unsqueeze(0).to(self._device)
-
-            self._model.eval()
             with torch.no_grad():
-                logits = self._model(tensor)
-                probs = F.softmax(logits, dim=1).cpu().numpy().flatten()
+                logits = self._model(img_t)
+                probs = F.softmax(logits, dim=1)
 
-            topk_idx = probs.argsort()[::-1][:topk]
-            results: List[Tuple[str, float]] = []
-            for idx in topk_idx:
-                name = self.class_map.get(int(idx), str(int(idx))) if self.class_map else str(int(idx))
-                results.append((name, float(probs[int(idx)])))
+            values, indices = torch.topk(probs, k=min(k, probs.size(1)), dim=1)
+            values = values.squeeze(0).cpu().tolist()
+            indices = indices.squeeze(0).cpu().tolist()
 
+            results = [
+                {"label": self.id2label[idx], "prob": float(p)}
+                for idx, p in zip(indices, values)
+            ]
             return results
-
         except Exception as e:
-            logging.error(f"Error while predicting: {e}")
-            raise
-
-
+            logger.error(f"Error processing image: {e}")
+            raise ValueError(f"Could not process image: {e}") from e

@@ -1,108 +1,90 @@
-from __future__ import annotations
-
 import os
-from typing import Optional, Tuple, Dict, Any, List
-
+import json
 import pandas as pd
+from typing import Optional, Dict
+
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
 
-from src.config import config
+
+CELEB_DATA_PATH = "datasets/scut"
 
 
 class CelebrityDataset(Dataset):
+    """
+    CSV формат: image,label
+    - image: относительный путь от datasets/celebs/images/
+    - label: строка с именем знаменитости (например 'Tom_Hanks')
+    """
+
     def __init__(
         self,
-        annotations_file: str,
-        images_dir: Optional[str] = None,
-        labels_dir: Optional[str] = None,
-        transform: Optional[Any] = None,
-    ) -> None:
-        self.images_dir = (
-            images_dir
-            or os.path.join(config.ml.scut_data_path, "images")
+        data_file: str,
+        transform=None,
+        classes_file: Optional[str] = None,
+        label2id: Optional[Dict[str, int]] = None,
+    ):
+        self.df = pd.read_csv(
+            os.path.join(CELEB_DATA_PATH, "labels/processed", data_file)
         )
-        self.labels_dir = (
-            labels_dir
-            or os.path.join(config.ml.scut_data_path, "labels/processed")
-        )
-
-        # Allow passing full path as annotations_file
-        if os.path.isabs(annotations_file) or os.path.exists(annotations_file):
-            csv_path = annotations_file
-        else:
-            csv_path = os.path.join(self.labels_dir, annotations_file)
-
-        self.df = pd.read_csv(csv_path)
-        if "image" not in self.df.columns:
-            # assume first column is image name
-            self.df.rename(columns={self.df.columns[0]: "image"}, inplace=True)
-
-        # accept 'label' column or the second column
-        if "label" not in self.df.columns:
-            if len(self.df.columns) >= 2:
-                self.df.rename(columns={self.df.columns[1]: "label"}, inplace=True)
-            else:
-                raise ValueError("CSV must contain at least two columns: image and label")
-
+        self.df["label"] = self.df["label"].astype(str)
         self.transform = transform
 
-        # Build label -> index mapping if labels are strings
-        sample_label = self.df["label"].iloc[0]
-        if isinstance(sample_label, str):
-            # map unique names to indices in sorted order to have deterministic mapping
-            unique_names = sorted(self.df["label"].unique().tolist())
-            self.name2idx: Dict[str, int] = {n: i for i, n in enumerate(unique_names)}
-            self.idx2name: Dict[int, str] = {i: n for n, i in self.name2idx.items()}
-            # replace column with integer indices
-            self.df["label_idx"] = self.df["label"].map(self.name2idx).astype(int)
-            self._has_name_labels = True
+        # Куда и откуда читать словари соответствий
+        self._classes_file = classes_file or os.path.join(
+            CELEB_DATA_PATH, "labels/processed", "classes.json"
+        )
+
+        if label2id is not None:
+            self.label2id = label2id
         else:
-            # assume numeric labels (int-like)
-            self.df["label_idx"] = self.df["label"].astype(int)
-            self.name2idx = {}
-            self.idx2name = {}
-            self._has_name_labels = False
+            # если classes.json уже есть — читаем; иначе создадим по train.txt при первом использовании
+            if os.path.exists(self._classes_file):
+                with open(self._classes_file, "r", encoding="utf-8") as f:
+                    id2label = json.load(f)
+                self.label2id = {v: int(k) for k, v in id2label.items()}
+            else:
+                # строим из текущего файла (ожидается, что это train.txt)
+                unique_labels = sorted(self.df["label"].unique().tolist())
+                self.label2id = {lbl: i for i, lbl in enumerate(unique_labels)}
+                # сохраним id2label = {id: label}
+                id2label = {str(i): lbl for lbl, i in self.label2id.items()}
+                os.makedirs(os.path.dirname(self._classes_file), exist_ok=True)
+                with open(self._classes_file, "w", encoding="utf-8") as f:
+                    json.dump(id2label, f, ensure_ascii=False, indent=2)
+
+        self.id2label = {i: lbl for lbl, i in self.label2id.items()}
 
     def __len__(self) -> int:
         return len(self.df)
 
-    def __getitem__(self, idx: int):
+    @property
+    def num_classes(self) -> int:
+        return len(self.label2id)
+
+    def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img_name = row["image"]
-        img_path = os.path.join(self.images_dir, img_name)
+        img_path = os.path.join(CELEB_DATA_PATH, "images", row["image"])
 
-        if not os.path.exists(img_path):
-            raise FileNotFoundError(f"Image not found: {img_path}")
+        with Image.open(img_path) as image:
+            image = image.convert("RGB")
+            if self.transform:
+                image = self.transform(image)
 
-        with Image.open(img_path) as img:
-            img = img.convert("RGB")
-            if self.transform is not None:
-                img = self.transform(img)
+        label_str = row["label"]
+        label_idx = self.label2id[label_str]
+        label_tensor = torch.tensor(label_idx, dtype=torch.long)  # для CrossEntropyLoss
 
-        label = int(row["label_idx"])  # guaranteed int
-        label = torch.tensor(label, dtype=torch.long)
-
-        return img, label
+        return image, label_tensor
 
 
-def get_data_loaders(
-    batch_size: int = 32,
-    train_file: str = "train.csv",
-    val_file: str = "val.csv",
-    test_file: Optional[str] = "test.csv",
-    images_dir: Optional[str] = None,
-    labels_dir: Optional[str] = None,
-    num_workers: int = 2,
-    image_size: int = 224,
-) -> Tuple[DataLoader, DataLoader, Optional[DataLoader], Dict[int, str]]:
-
-    # Transforms
+def get_data_loaders(batch_size: int = 32):
+    # Трансформации — как в аттрактивности (аугментации только на train)
     train_transform = transforms.Compose(
         [
-            transforms.Resize((image_size, image_size)),
+            transforms.Resize((224, 224)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
             transforms.ToTensor(),
@@ -110,58 +92,32 @@ def get_data_loaders(
         ]
     )
 
-    val_transform = transforms.Compose(
+    test_transform = transforms.Compose(
         [
-            transforms.Resize((image_size, image_size)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
 
-    # Datasets
+    classes_file = os.path.join(CELEB_DATA_PATH, "labels/processed", "classes.json")
+
     train_ds = CelebrityDataset(
-        annotations_file=train_file,
-        images_dir=images_dir,
-        labels_dir=labels_dir,
+        data_file="train.txt",
         transform=train_transform,
+        classes_file=classes_file,
     )
-
+    # test/val должен использовать тот же label2id, чтобы индексы совпадали
     val_ds = CelebrityDataset(
-        annotations_file=val_file,
-        images_dir=images_dir,
-        labels_dir=labels_dir,
-        transform=val_transform,
+        data_file="test.txt",
+        transform=test_transform,
+        classes_file=classes_file,
+        label2id=train_ds.label2id,
     )
 
-    test_ds = None
-    if test_file is not None:
-        try:
-            test_ds = CelebrityDataset(
-                annotations_file=test_file,
-                images_dir=images_dir,
-                labels_dir=labels_dir,
-                transform=val_transform,
-            )
-        except Exception:
-            test_ds = None
+    train_loader = DataLoader(
+        train_ds, batch_size=batch_size, shuffle=True, num_workers=2
+    )
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=2)
 
-    # DataLoaders
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers) if test_ds is not None else None
-
-    # Build class_map (index -> name) — prefer val_ds.idx2name if available
-    class_map: Dict[int, str] = {}
-    if getattr(train_ds, "idx2name", None):
-        class_map = train_ds.idx2name
-    elif getattr(val_ds, "idx2name", None):
-        class_map = val_ds.idx2name
-    elif test_ds is not None and getattr(test_ds, "idx2name", None):
-        class_map = test_ds.idx2name
-
-    return train_loader, val_loader, test_loader, class_map
-
-
-# Example usage:
-# train_loader, val_loader, test_loader, class_map = get_data_loaders(batch_size=32)
-# print('num classes:', len(class_map) if class_map else 'unknown (numeric labels)')
+    return train_loader, val_loader
