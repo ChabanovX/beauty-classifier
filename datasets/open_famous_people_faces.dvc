@@ -1,0 +1,6 @@
+outs:
+- md5: 3f796e92943ae79d593e8448de900b33.dir
+  size: 55335769
+  nfiles: 3026
+  hash: md5
+  path: open_famous_people_faces

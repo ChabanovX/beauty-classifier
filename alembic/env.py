@@ -1,8 +1,3 @@
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 import asyncio
 from logging.config import fileConfig
 
@@ -12,8 +7,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from src.config import config
 from src.infrastructure.database.models import Base
+from src.config import config
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -24,7 +20,7 @@ alembic_config = context.config
 if alembic_config.config_file_name is not None:
     fileConfig(alembic_config.config_file_name)
 
-alembic_config.set_main_option("sqlalchemy.url", config.db.connection_string)
+alembic_config.set_main_option("sqlalchemy.url", config.db.uri)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

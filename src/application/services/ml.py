@@ -1,31 +1,30 @@
 from src.infrastructure.ml_models import attractiveness_model  # , looak_a_like_finder
-from src.infrastructure.schemas import Inference
+# from src.interfaces.api.v1.schemas import Inference
 
 
 class MLService:
-    def __init__(self):
-        pass
-
+    @staticmethod
     def get_attractiveness(image: bytes) -> float | None:
         if not image:
             return None
         try:
             predicted_attractiveness = attractiveness_model.predict(image)
-        except:
+        except ValueError:
             return None
         return round(predicted_attractiveness, 4)
 
+    @staticmethod
     def get_celebrities(image: bytes) -> list[int] | None:
         return []
-        if not image:
-            return None
-        try:
-            celebrities = lookup_a_like_finder.predict(image)
-        except:
-            return None
-        return celebrities
+        # if not image:
+        #     return None
+        # try:
+        #     celebrities = lookup_a_like_finder.predict(image)
+        # except:
+        #     return None
+        # return celebrities
 
-    @staticmethod
-    def create_inference(user_id: int, image: bytes) -> Inference:
-        celebritty_ids = MLService.get_celebrities(image)
-        attractiveness = MLService.get_attractiveness(image)
+    # @staticmethod
+    # def create_inference(user_id: int, image: bytes) -> Inference:
+    #     celebritty_ids = MLService.get_celebrities(image)
+    #     attractiveness = MLService.get_attractiveness(image)

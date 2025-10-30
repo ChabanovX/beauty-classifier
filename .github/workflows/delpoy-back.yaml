@@ -11,13 +11,6 @@ jobs:
     steps:
     - name: Pull code
       run: |
-          cd ~/beauty-classifier
           git pull
-    - name: Update dependencies
-      run: . .venv/bin/activate && uv sync --no-dev
-    - name: Pull data
-      run: make pull-data
     - name: Stop and restart containers
-      run: docker compose down && docker compose pull && docker compose up -d
-    - name: Clean up unused images
-      run: docker image prune -f
+      run: docker compose down && docker compose build && docker compose up --remove-orphans -d

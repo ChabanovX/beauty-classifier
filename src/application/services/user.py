@@ -1,80 +1,64 @@
-from typing import Annotated
+from typing import override
+import logging
 
 from fastapi import Depends
 
-from src.infrastructure.schemas import (
-    IDRead,
-    UserCreate,
-    UserRead,
-    UserUpdate,
-    Inference,
-)
 from src.infrastructure.repositories import UserRepository
-from .base import BaseService
+from src.interfaces.api.v1.schemas import UserCreate, UserRead, Inference
+from .crud import CRUDService
 from .security import SecurityService
-from ..exceptions import (
-    NotFoundException,
-    AlreadyExistsException,
-    IncorrectPasswordException,
-)
+
+logger = logging.getLogger(__name__)
 
 
-class UserService(BaseService[UserRepository]):
-    def __init__(self, repository: Annotated[UserRepository, Depends()]):
+class UserService(CRUDService[UserRepository, UserRead]):
+    def __init__(self, repository: UserRepository = Depends()):
+        super().__init__()
         self.repository = repository
+        self.read_schema = UserRead
 
-    async def create(self, data: UserCreate) -> IDRead:
-        data.password = SecurityService.hash_password(data.password)
-        return IDRead.model_validate(await self.repository.create(**data.model_dump()))
-
-    async def update(self, id: int, data: UserUpdate) -> UserRead:
-        user = await self.repository.update(id, **data.model_dump())
+    @override
+    async def create(self, **data):
+        data["password"] = SecurityService.hash_password(data["password"])
+        user = await self.repository.create(**data)
         if not user:
             return None
-        return UserRead(id=user.id, login=user.login, inferences=user.inferences)
+        return UserRead.model_validate(user)
 
-    async def get(self, id: int) -> UserRead:
-        user = await self.repository.get(id)
+    @override
+    async def get(self, id_login: int | str):
+        user = await self.repository.get(id_login)
         if not user:
             return None
-        return UserRead(id=user.id, login=user.login, inferences=user.inferences)
+        return UserRead.model_validate(user)
 
-    async def filter(self, page: int = 1, limit: int = 100) -> list[UserRead]:
-        offset = (page - 1) * limit
-        users = []
-        for user in await self.repository.filter(offset, limit):
-            users.append(
-                UserRead(id=user.id, login=user.login, inferences=user.inferences)
-            )
-        return users
+    async def get_inferences(self, id: int):
+        return [
+            Inference.model_validate(inference)
+            for inference in await self.repository.get_inferences(id)
+        ]
 
-    async def get_inferences(self, id: int) -> list[Inference]:
-        inferences = []
-        for inference in await self.repository.get_inferences(id):
-            inferences.append(
-                Inference(
-                    id=inference.id,
-                    user_id=inference.user_id,
-                    celebrities=inference.celebrities,
-                    attractiveness=inference.attractiveness,
-                    date=inference.created_at,
-                    picture=inference.picture,
-                )
-            )
-        return inferences
+    async def login(self, data: UserCreate):
+        user = await self.repository.get(data.name)
 
-    async def login(self, data: UserCreate) -> int:
-        user = await self.repository.get(data.login)
-        if not user:
-            raise NotFoundException
-        if not SecurityService.verify_password(data.password, user.password):
-            raise IncorrectPasswordException
-        return user.id
+        if not user or not SecurityService.verify_password(
+            data.password, user.password
+        ):
+            return None  # not exists or incorrect password
 
-    async def register(self, data: UserCreate) -> int:
-        user = await self.repository.get(data.login)
+        return SecurityService.issue_token(
+            user_id=user.id, username=user.name, role=user.role
+        )
+
+    async def register(self, data: UserCreate):
+        user = await self.repository.get(data.name)
         if user:
-            raise AlreadyExistsException
+            return None  # already exists
+
         data.password = SecurityService.hash_password(data.password)
         user = await self.repository.create(**data.model_dump())
-        return user.id
+        if not user:
+            return None
+        return SecurityService.issue_token(
+            user_id=user.id, username=user.name, role=user.role
+        )

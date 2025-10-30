@@ -1,53 +1,58 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+import logging
 
 import jwt
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
-from hashids import Hashids
+from pydantic import ValidationError
 
 from src.config import config
+from src.interfaces.api.v1.schemas import Token
 
-password_hash = PasswordHash.recommended()
-hashids = Hashids(config.auth.salt, min_length=6)
-
-
-def _create_access_token(*_, **data) -> str:
-    to_encode = data.copy()
-    now = datetime.now(timezone.utc)
-    expire = now + timedelta(minutes=config.auth.access_token_expire)
-    to_encode.update({"iat": int(now.timestamp()), "exp": int(expire.timestamp())})
-    return jwt.encode(
-        to_encode, config.auth.secret_key, algorithm=config.auth.algorithm
-    )
+logger = logging.getLogger(__name__)
 
 
 class SecurityService:
-    def hash_password(password: str) -> str:
-        return password_hash.hash(password, salt=config.auth.salt.encode())
+    _password_hash = PasswordHash.recommended()
 
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
-        return password_hash.verify(plain_password, hashed_password)
+    @classmethod
+    def hash_password(cls, password: str) -> str:
+        return cls._password_hash.hash(password, salt=config.auth.salt)
 
-    def create_access_token(*_, **data) -> str:
-        return _create_access_token(**data)
+    @classmethod
+    def verify_password(cls, plain_password: str, hashed_password: str) -> bool:
+        return cls._password_hash.verify(plain_password, hashed_password)
 
-    def decode_access_token(token: str) -> dict | None:
-        try:
-            payload = jwt.decode(
-                token, config.auth.secret_key, algorithms=[config.auth.algorithm]
-            )
-            return payload
-        except InvalidTokenError:
-            return None
+    @staticmethod
+    def issue_token(*_, **data) -> Token:
+        token_data = data.copy()
 
-    def hash_id(id: int) -> str:
-        return hashids.encode(id)
+        now = int(datetime.now(timezone.utc).timestamp())
+        expire_delta = config.auth.access_token_expire_m * 60
+        token_data.update({"iat": now, "exp": now + expire_delta, "type": "Bearer"})
 
-    def decode_id(id: str) -> int:
-        return hashids.decode(id)[0]
-
-    def refresh_access_token(token: str) -> str:
-        payload = jwt.decode(
-            token, config.auth.secret_key, algorithms=[config.auth.algorithm]
+        jwt_token = jwt.encode(
+            token_data, config.auth.secret_key, config.auth.algorithm
         )
-        return _create_access_token(payload)
+
+        token_data["token"] = jwt_token
+        return Token(**token_data)
+
+    @staticmethod
+    def decode_token(raw_token: str) -> Token | None:
+        try:
+            jwt_token: dict = jwt.decode(
+                raw_token,
+                config.auth.secret_key,
+                algorithms=[config.auth.algorithm],
+                options={"verify_exp": True},
+            )
+            jwt_token.update({"type": "Bearer", "token": raw_token})
+            return Token(**jwt_token)
+        except (InvalidTokenError, ValidationError) as e:
+            if isinstance(e, ValidationError):
+                logger.debug(f"Unable to coerce to Token model: {jwt_token}")
+                raise
+            elif isinstance(e, InvalidTokenError):
+                logger.debug(f"Invalid token: {raw_token}")
+            return None
