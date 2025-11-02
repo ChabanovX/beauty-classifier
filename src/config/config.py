@@ -6,6 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .logconf import Logging
 
+try:
+    import mlflow
+except ImportError:
+    pass
+
 
 class DB(BaseModel):
     prod_uri: str
@@ -72,3 +77,4 @@ class Config(BaseSettings):
 config = Config()
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
+mlflow.set_tracking_uri(config.ml.mlflow_tracking_url)
