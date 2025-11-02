@@ -198,6 +198,10 @@ class CelebrityMatcherModel(ModelBase):
                 for m in metrics.values():
                     m.reset()
 
+                # reset metrics
+                for m in metrics.values():
+                    m.reset()
+
                 running_loss = 0.0
                 total = 0
 
