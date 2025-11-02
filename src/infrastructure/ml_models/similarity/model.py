@@ -4,7 +4,7 @@ import json
 import logging
 import warnings
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -18,7 +18,9 @@ try:
     import mlflow
     import torchmetrics
     from tqdm import tqdm
-    from .dataset import get_data_loaders  # <- этот get_data_loaders из файла выше
+
+    # наш новый датасет на папочной структуре
+    from .dataset import get_data_loaders, CLASSES_FILE
 except ImportError:
     pass
 
@@ -26,22 +28,34 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 logger = logging.getLogger(__name__)
 
 
+def _load_id2label(path: str) -> Optional[Dict[int, str]]:
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        return {int(k): v for k, v in raw.items()}
+    return None
+
+
 class CelebrityMatcherModel(ModelBase):
     """
-    Классификация на множество знаменитостей.
-    - Бекбон ResNet50 с предобученными весами (замораживаем параметры)
-    - Кастомный голова: Linear -> ReLU -> Dropout -> Linear(num_classes), Softmax в инференсе
-    - Лосс: CrossEntropyLoss
-    - Метрики: accuracy@1, accuracy@5, macro-F1, пер-класс accuracy (логгинг в mlflow)
+    Классификация знаменитостей.
+    - ResNet50 (замороженный бекбон) + кастомная голова
+    - Лосс: CrossEntropy
+    - Метрики: acc@1, acc@5, macro-F1
     """
 
     _name: str = "celebrity_matcher"
 
-    def __init__(self, out_features: int = 512, top_k: int = 5):
+    def __init__(
+        self,
+        out_features: int = 512,
+        top_k: int = 5,
+        classes_file: Optional[str] = None,
+    ):
         super().__init__()
         self.top_k = top_k
 
-        # Трансформации на инференсе
+        # Трансформации для инференса
         self._transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
@@ -53,23 +67,31 @@ class CelebrityMatcherModel(ModelBase):
             ]
         )
 
-        self._classes_file = os.path.join(
-            "datasets/celebs", "labels/processed", "classes.json"
-        )
-        self.id2label = None
-        if os.path.exists(self._classes_file):
-            with open(self._classes_file, "r", encoding="utf-8") as f:
-                _id2label: Dict[str, str] = json.load(f)
-            self.id2label = {int(k): v for k, v in _id2label.items()}
+        # === ВАЖНО: путь к classes.json синхронен с dataset.py ===
+        self._classes_file = (
+            classes_file or CLASSES_FILE
+        )  # datasets/open_famous_people_faces/classes.json
+        self.id2label = _load_id2label(self._classes_file)
         self.num_classes = len(self.id2label) if self.id2label else None
 
-        backbone = models.resnet50(weights="IMAGENET1K_V2")
+        # Бекбон + голова
+        try:
+            from torchvision.models import ResNet50_Weights
+
+            backbone = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        except Exception:
+            try:
+                backbone = models.resnet50(weights="IMAGENET1K_V2")
+            except Exception:
+                backbone = models.resnet50(pretrained=True)
+
         for p in backbone.parameters():
             p.requires_grad = False
 
         in_features = backbone.fc.in_features
-        classifier_out = self.num_classes if self.num_classes else 2
-
+        classifier_out = (
+            self.num_classes if self.num_classes else 2
+        )  # временно 2 до чтения classes.json
         backbone.fc = nn.Sequential(
             nn.Linear(in_features, out_features),
             nn.ReLU(),
@@ -113,6 +135,7 @@ class CelebrityMatcherModel(ModelBase):
         ).to(device)
         return nn.ModuleDict({"acc1": acc1, "acc5": acc5, "f1_macro": f1m})
 
+    # ---- train / eval ----
     def train(
         self,
         epochs: int = 10,
@@ -169,10 +192,7 @@ class CelebrityMatcherModel(ModelBase):
         for epoch in range(epochs):
             logger.info(f"Epoch {epoch + 1}/{epochs}")
             for phase, loader in [("train", train_loader), ("val", val_loader)]:
-                if phase == "train":
-                    self._model.train()
-                else:
-                    self._model.eval()
+                self._model.train(mode=(phase == "train"))
 
                 # reset metrics
                 for m in metrics.values():
@@ -201,10 +221,8 @@ class CelebrityMatcherModel(ModelBase):
                     running_loss += loss.item() * bs
 
                     preds = torch.argmax(logits, dim=1)
-                    # обновим метрики
-                    metrics["acc1"].update(preds, labels)
-                    # для top-5 передадим логиты, torchmetrics сам применит top_k
-                    metrics["acc5"].update(logits, labels)
+                    metrics["acc1"].update(preds, labels)  # top-1 по предсказаниям
+                    metrics["acc5"].update(logits, labels)  # top-5 по логитам
                     metrics["f1_macro"].update(preds, labels)
 
                     pbar.set_postfix(
@@ -217,7 +235,6 @@ class CelebrityMatcherModel(ModelBase):
                 epoch_loss = running_loss / max(1, total)
                 computed = {name: m.compute().item() for name, m in metrics.items()}
 
-                # Логгинг
                 mlflow.log_metrics(
                     {
                         f"{phase}_loss": epoch_loss,
@@ -234,7 +251,6 @@ class CelebrityMatcherModel(ModelBase):
                 )
 
                 if phase == "val":
-                    # сохраняем лучший по acc1
                     if computed["acc1"] > best_acc:
                         best_acc = computed["acc1"]
                         self.save()
@@ -245,14 +261,12 @@ class CelebrityMatcherModel(ModelBase):
                                 registered_model_name=self._name,
                             )
                         except Exception:
-                            # На локалке без MLflow Model Registry — просто пропустим
                             pass
                         mlflow.log_metric("best_val_acc1", best_acc)
                         logger.info(
                             f"New best model saved with val acc1: {best_acc:.4f}"
                         )
 
-                    # шаг планировщика по валидационной метрике
                     if isinstance(
                         scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
                     ):
@@ -271,6 +285,7 @@ class CelebrityMatcherModel(ModelBase):
             self.load()
 
         self._model.eval()
+        # используем валид. лоадер как тестовый, т.к. сплит двухчастный
         _, test_loader = get_data_loaders()
         num_classes = test_loader.dataset.num_classes
         metrics = self._setup_metrics(self._device, num_classes)
@@ -314,19 +329,18 @@ class CelebrityMatcherModel(ModelBase):
 
     def predict(self, image: bytes, top_k: int | None = None) -> List[Dict[str, float]]:
         """
-        Возвращает top-k [(label, prob)], отсортированные по убыванию вероятности.
+        Возвращает top-k [{label, prob}], отсортированные по убыванию вероятности.
         """
         if not self.loaded:
             self.load()
 
+        # маппинг классов
         if self.id2label is None:
-            # попробуем прочитать classes.json (нужно для маппинга id->имя)
-            if os.path.exists(self._classes_file):
-                with open(self._classes_file, "r", encoding="utf-8") as f:
-                    _id2label = json.load(f)
-                self.id2label = {int(k): v for k, v in _id2label.items()}
-            else:
-                raise ValueError("id2label mapping not found. Did you train the model?")
+            self.id2label = _load_id2label(self._classes_file)
+            if self.id2label is None:
+                raise ValueError(
+                    "id2label mapping not found. Train the model at least once to generate classes.json"
+                )
 
         self._model.eval()
         k = top_k or self.top_k
@@ -342,11 +356,10 @@ class CelebrityMatcherModel(ModelBase):
             values = values.squeeze(0).cpu().tolist()
             indices = indices.squeeze(0).cpu().tolist()
 
-            results = [
+            return [
                 {"label": self.id2label[idx], "prob": float(p)}
                 for idx, p in zip(indices, values)
             ]
-            return results
         except Exception as e:
             logger.error(f"Error processing image: {e}")
             raise ValueError(f"Could not process image: {e}") from e

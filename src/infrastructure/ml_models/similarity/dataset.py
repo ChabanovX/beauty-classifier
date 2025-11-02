@@ -1,87 +1,151 @@
 import os
 import json
-import pandas as pd
-from typing import Optional, Dict
+import hashlib
+from typing import Optional, Dict, List, Tuple
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
 
-
+# Корень датасета: внутри — папки по именам знаменитостей
 CELEB_DATA_PATH = "datasets/open_famous_people_faces"
+CLASSES_FILE = os.path.join(CELEB_DATA_PATH, "classes.json")
+
+IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
-class CelebrityDataset(Dataset):
+def _iter_classes(root: str) -> List[str]:
+    """Список классов = имена подпапок (отсортированный, стабильный)."""
+    classes = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))]
+    classes.sort()
+    return classes
+
+
+def _list_images(root: str, cls: str) -> List[str]:
+    """Вернёт список относительных путей 'класс/файл' (отсортированный)."""
+    folder = os.path.join(root, cls)
+    files = []
+    for name in os.listdir(folder):
+        p = os.path.join(folder, name)
+        if os.path.isfile(p) and os.path.splitext(name)[1].lower() in IMG_EXTS:
+            files.append(os.path.join(cls, name))
+    files.sort()
+    return files
+
+
+def _hash_split(relpath: str, seed: int) -> float:
     """
-    CSV формат: image,label
-    - image: относительный путь от datasets/celebs/images/
-    - label: строка с именем знаменитости (например 'Tom_Hanks')
+    Детерминированная псевдослучайная величина в [0,1) по относительному пути и seed.
+    Позволяет делать стабильный сплит без хранения манифестов.
+    """
+    h = hashlib.md5((relpath + str(seed)).encode("utf-8")).hexdigest()
+    # возьмём первые 8 hex-символов как uint32
+    val = int(h[:8], 16)
+    return val / 0xFFFFFFFF
+
+
+class CelebrityFolderDataset(Dataset):
+    """
+    Датасет по папочной структуре:
+      datasets/open_famous_people_faces/
+        ├─ aaron_taylor_johnson/
+        │    ├─ face_detected_01ae6051.jpg
+        │    └─ ...
+        ├─ tom_hanks/
+        └─ ...
+
+    split: 'train' или 'val'
+    Сплит делается детерминированно (per-file) по хэшу пути и seed, баланс по классам сохраняется
+    автоматически, т.к. решение принимается для каждого файла внутри класса.
     """
 
     def __init__(
         self,
-        data_file: str,
+        root: str = CELEB_DATA_PATH,
+        split: str = "train",
         transform=None,
-        classes_file: Optional[str] = None,
+        val_ratio: float = 0.1,
+        seed: int = 42,
         label2id: Optional[Dict[str, int]] = None,
+        classes_file: Optional[str] = None,
     ):
-        self.df = pd.read_csv(
-            os.path.join(CELEB_DATA_PATH, "labels/processed", data_file)
-        )
-        self.df["label"] = self.df["label"].astype(str)
+        assert split in {"train", "val"}
+        assert 0.0 < val_ratio < 1.0
+
+        self.root = root
+        self.split = split
         self.transform = transform
+        self.val_ratio = val_ratio
+        self.seed = seed
 
-        # Куда и откуда читать словари соответствий
-        self._classes_file = classes_file or os.path.join(
-            CELEB_DATA_PATH, "labels/processed", "classes.json"
-        )
-
+        # Маппинг классов
+        self._classes_file = classes_file or CLASSES_FILE
         if label2id is not None:
             self.label2id = label2id
         else:
-            # если classes.json уже есть — читаем; иначе создадим по train.txt при первом использовании
             if os.path.exists(self._classes_file):
                 with open(self._classes_file, "r", encoding="utf-8") as f:
                     id2label = json.load(f)
+                # в файле ключи — строки id
                 self.label2id = {v: int(k) for k, v in id2label.items()}
             else:
-                # строим из текущего файла (ожидается, что это train.txt)
-                unique_labels = sorted(self.df["label"].unique().tolist())
-                self.label2id = {lbl: i for i, lbl in enumerate(unique_labels)}
-                # сохраним id2label = {id: label}
-                id2label = {str(i): lbl for lbl, i in self.label2id.items()}
-                os.makedirs(os.path.dirname(self._classes_file), exist_ok=True)
+                cls_names = _iter_classes(self.root)
+                self.label2id = {name: i for i, name in enumerate(cls_names)}
+                id2label = {str(i): name for name, i in self.label2id.items()}
                 with open(self._classes_file, "w", encoding="utf-8") as f:
                     json.dump(id2label, f, ensure_ascii=False, indent=2)
 
         self.id2label = {i: lbl for lbl, i in self.label2id.items()}
 
+        # Индекс изображений для нужного split
+        self.samples: List[Tuple[str, int]] = []
+        for lbl_name in self.label2id.keys():
+            files = _list_images(self.root, lbl_name)
+            for relpath in files:
+                r = _hash_split(relpath, seed=self.seed)
+                is_val = r < self.val_ratio
+                if (self.split == "val" and is_val) or (
+                    self.split == "train" and not is_val
+                ):
+                    self.samples.append((relpath, self.label2id[lbl_name]))
+
+        if len(self.samples) == 0:
+            raise RuntimeError(
+                f"No images found for split='{self.split}'. "
+                f"Check '{self.root}' structure and extensions: {sorted(IMG_EXTS)}"
+            )
+
     def __len__(self) -> int:
-        return len(self.df)
+        return len(self.samples)
 
     @property
     def num_classes(self) -> int:
         return len(self.label2id)
 
-    def __getitem__(self, idx):
-        row = self.df.iloc[idx]
-        img_path = os.path.join(CELEB_DATA_PATH, "images", row["image"])
+    def __getitem__(self, idx: int):
+        relpath, label = self.samples[idx]
+        img_path = os.path.join(self.root, relpath)
 
         with Image.open(img_path) as image:
             image = image.convert("RGB")
-            if self.transform:
+            if self.transform is not None:
                 image = self.transform(image)
 
-        label_str = row["label"]
-        label_idx = self.label2id[label_str]
-        label_tensor = torch.tensor(label_idx, dtype=torch.long)  # для CrossEntropyLoss
-
+        label_tensor = torch.tensor(label, dtype=torch.long)
         return image, label_tensor
 
 
-def get_data_loaders(batch_size: int = 32):
-    # Трансформации — как в аттрактивности (аугментации только на train)
+def get_data_loaders(
+    batch_size: int = 32,
+    num_workers: int = 2,
+    val_ratio: float = 0.1,
+    seed: int = 42,
+):
+    """
+    Возвращает (train_loader, val_loader) из папочной структуры.
+    label2id фиксируем от train, чтобы индексы совпадали.
+    """
     train_transform = transforms.Compose(
         [
             transforms.Resize((224, 224)),
@@ -91,8 +155,7 @@ def get_data_loaders(batch_size: int = 32):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-
-    test_transform = transforms.Compose(
+    val_transform = transforms.Compose(
         [
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
@@ -100,24 +163,32 @@ def get_data_loaders(batch_size: int = 32):
         ]
     )
 
-    classes_file = os.path.join(CELEB_DATA_PATH, "labels/processed", "classes.json")
-
-    train_ds = CelebrityDataset(
-        data_file="train.txt",
+    # Train сначала — формируем label2id и сохраняем classes.json
+    train_ds = CelebrityFolderDataset(
+        root=CELEB_DATA_PATH,
+        split="train",
         transform=train_transform,
-        classes_file=classes_file,
+        val_ratio=val_ratio,
+        seed=seed,
+        classes_file=CLASSES_FILE,
     )
-    # test/val должен использовать тот же label2id, чтобы индексы совпадали
-    val_ds = CelebrityDataset(
-        data_file="test.txt",
-        transform=test_transform,
-        classes_file=classes_file,
+
+    # Val — используем тот же маппинг индексов
+    val_ds = CelebrityFolderDataset(
+        root=CELEB_DATA_PATH,
+        split="val",
+        transform=val_transform,
+        val_ratio=val_ratio,
+        seed=seed,
         label2id=train_ds.label2id,
+        classes_file=CLASSES_FILE,
     )
 
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True, num_workers=2
+        train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=2)
+    val_loader = DataLoader(
+        val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
 
     return train_loader, val_loader
