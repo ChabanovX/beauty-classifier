@@ -15,6 +15,7 @@ CELEB_DATA_PATH = "datasets/open_famous_people_faces"
 CLASSES_FILE = os.path.join(CELEB_DATA_PATH, "classes.json")
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+CELEB_DATA_PATH = "datasets/open_famous_people_faces"
 
 
 def _iter_classes(root: str) -> List[str]:
