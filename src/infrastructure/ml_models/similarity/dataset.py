@@ -9,7 +9,7 @@ from torchvision import transforms
 from PIL import Image
 
 
-CELEB_DATA_PATH = "datasets/scut"
+CELEB_DATA_PATH = "datasets/open_famous_people_faces"
 
 
 class CelebrityDataset(Dataset):
