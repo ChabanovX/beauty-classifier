@@ -26,7 +26,7 @@ user_router = APIRouter(
 @user_router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(
     data: UserCreate,
-    service: Annotated[UserService, Depends()],
+    service: UserService = Depends(UserService.dep()),
 ) -> IDMixin:
     id = await service.create(**data.model_dump())
     if not id:
@@ -36,7 +36,7 @@ async def create_user(
 
 @user_router.get("/")
 async def get_users(
-    service: Annotated[UserService, Depends()],
+    service: UserService = Depends(UserService.dep()),
     page: int = Query(1, description="Page number"),
     limit: int = Query(100, description="Items per page"),
 ) -> list[UserRead]:
@@ -46,7 +46,7 @@ async def get_users(
 @user_router.get("/{id}")
 async def get_user(
     id: int,
-    service: Annotated[UserService, Depends()],
+    service: UserService = Depends(UserService.dep()),
 ) -> UserRead:
     user = await service.get(id)
     if not user:
@@ -56,7 +56,7 @@ async def get_user(
 
 @user_router.patch("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def update_user(
-    id: int, user: UserUpdate, service: Annotated[UserService, Depends()]
+    id: int, user: UserUpdate, service: UserService = Depends(UserService.dep())
 ) -> None:
     res = await service.update(id, **user.model_dump())
     if res is None:
@@ -68,7 +68,7 @@ async def update_user(
 @user_router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     id: int,
-    service: Annotated[UserService, Depends()],
+    service: UserService = Depends(UserService.dep()),
 ) -> None:
     deleted = await service.delete(id)
     if deleted is False:

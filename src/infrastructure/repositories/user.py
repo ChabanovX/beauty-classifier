@@ -7,8 +7,6 @@ from .crud import CRUDRepository
 
 
 class UserRepository(CRUDRepository[User]):
-    model = User
-
     @override
     async def get(self, id_login: str | int) -> User | None:
         if isinstance(id_login, int):

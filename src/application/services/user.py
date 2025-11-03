@@ -1,7 +1,6 @@
-from typing import override, Annotated
+from typing import override
 import logging
 
-from fastapi import Depends
 
 from src.infrastructure.repositories import UserRepository
 from src.interfaces.api.v1.schemas import UserCreate, UserRead, Inference
@@ -12,11 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 class UserService(CRUDService[UserRepository, UserRead]):
-    def __init__(self, repository: Annotated[UserRepository, Depends()]):
-        super().__init__()
-        self.repository = repository
-        self.read_schema = UserRead
-
     @override
     async def create(self, **data):
         data["password"] = SecurityService.hash_password(data["password"])
