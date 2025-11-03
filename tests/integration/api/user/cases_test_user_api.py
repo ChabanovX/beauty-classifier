@@ -2,7 +2,13 @@ import datetime
 from http import HTTPStatus
 
 from src.config import config
-from src.interfaces.api.v1.schemas import UserCreate, UserRead, UserUpdate, Inference
+from src.interfaces.api.v1.schemas import (
+    UserCreate,
+    UserRead,
+    UserUpdate,
+    Inference,
+    IDMixin,
+)
 
 from ..utils import APICase
 
@@ -10,14 +16,15 @@ now = datetime.datetime.now()
 
 test_inference = Inference(
     id=1,
-    user_id=1,
+    user_id=2,
     celebrities=[],
     attractiveness=0.5,
     date=now,
     picture=b"test",
 )
 test_user_create = UserCreate(name="test", password="test")
-test_user_read = UserRead(id=1, name="test")
+test_id_read = IDMixin(id=2)
+test_user_read = UserRead(id=2, name="test")
 test_user_update = UserUpdate(name="test2")
 
 admin_login = (config.auth.admin_name, config.auth.admin_password)

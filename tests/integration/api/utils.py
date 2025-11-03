@@ -7,7 +7,6 @@ from pytest_cases import parametrize_with_cases
 
 from src.interfaces.api.v1.__main__ import create_app
 
-
 # <obj_to_mock> -> <<attribute_to_mock> -> <side_effect_fn>>
 MockMappingT = dict[Any, dict[str, Any]]
 
@@ -72,11 +71,12 @@ def create_api_test(cases: Any):
                     AsyncMock(side_effect=side_effect),
                 )
         client = get_client(login[0], login[1])
+        client.headers.update(inp_headers)
+        print(client.headers.get("Authorization", None))
         res = client.request(
             method,
             endpoint_to_test,
             json=inp_body,
-            headers=inp_headers,
         )
         assert res.status_code == expected_status, (
             f"{res.status_code} != {expected_status}, {res.json()}"
@@ -100,12 +100,14 @@ def create_api_test(cases: Any):
 
 
 def get_client(name: str = "", password: str = ""):
-    with TestClient(create_app(), root_path="/api/v1") as client:
-        if not name and not password:
+    with TestClient(create_app()) as client:
+        if not (name and password):
             return client
         res = client.post("/auth/register", json={"name": name, "password": password})
-        res.raise_for_status()
         token = res.json().get("token", None)
-        assert token, "No token in response"
-        client.headers.update({"Authorization": f"Bearer {token}"})
+        if token is None:
+            res = client.post("/auth/login", json={"name": name, "password": password})
+            token = res.json().get("token", None)
+        res.raise_for_status()
+        client.headers.update({"Authorization": f"Bearer {token['token']}"})
         return client

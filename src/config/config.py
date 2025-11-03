@@ -3,13 +3,9 @@ import warnings
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import dotenv
 
 from .logconf import Logging
-
-try:
-    import mlflow
-except ImportError:
-    pass
 
 
 class DB(BaseModel):
@@ -76,5 +72,5 @@ class Config(BaseSettings):
 
 config = Config()
 
-warnings.simplefilter(action="ignore", category=FutureWarning)
-mlflow.set_tracking_uri(config.ml.mlflow_tracking_url)
+warnings.filterwarnings("ignore", category=FutureWarning)
+dotenv.load_dotenv()

@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import Depends
 
 from src.interfaces.api.v1.schemas import Celebrity
@@ -8,7 +10,7 @@ from .crud import CRUDService
 class CelebrityService(CRUDService[CelebrityRepository, Celebrity]):
     read_schema = Celebrity
 
-    def __init__(self, repository: CelebrityRepository = Depends()):
+    def __init__(self, repository: Annotated[CelebrityRepository, Depends()]):
         super().__init__()
         self.repository = repository
         self.read_schema = Celebrity

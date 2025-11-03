@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 
 from src.application.services import UserService
@@ -13,7 +15,7 @@ auth_router = APIRouter(prefix="/auth", tags=["Auth"])
 @auth_router.post("/register")
 async def register(
     data: UserCreate,
-    service: UserService = Depends(),
+    service: Annotated[UserService, Depends()],
 ) -> Token:
     token = await service.register(data)
     if not token:
@@ -22,7 +24,7 @@ async def register(
 
 
 @auth_router.post("/login")
-async def login(data: UserCreate, service: UserService = Depends()) -> Token:
+async def login(data: UserCreate, service: Annotated[UserService, Depends()]) -> Token:
     token = await service.login(data)
     if not token:
         raise InvalidCredentialsHTTPException

@@ -5,8 +5,9 @@ from alembic.config import Config as AbConfig
 from src.config import config
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def test_db():
+    global config
     config.env = "dev"
     config.db.uri = "sqlite+aiosqlite:///testdb.sqlite3"
 

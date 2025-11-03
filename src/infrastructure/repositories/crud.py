@@ -1,12 +1,12 @@
 from abc import ABC
-from typing import TypeVar
+from typing import TypeVar, Annotated
 
 from sqlalchemy import select, delete, update, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from src.infrastructure.database.core import get_session
+from src.infrastructure.database import DB
 from src.infrastructure.database.models.base import IDMixin
 
 ModelType = TypeVar("ModelType")
@@ -15,7 +15,7 @@ ModelType = TypeVar("ModelType")
 class CRUDRepository[ModelType: IDMixin](ABC):
     model: type[ModelType]
 
-    def __init__(self, db: AsyncSession = Depends(get_session)):
+    def __init__(self, db: Annotated[AsyncSession, Depends(DB.session)]):
         self.db = db
 
     async def get(self, id: int):

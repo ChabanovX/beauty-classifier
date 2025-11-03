@@ -1,4 +1,4 @@
-from typing import override
+from typing import override, Annotated
 import logging
 
 from fastapi import Depends
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class UserService(CRUDService[UserRepository, UserRead]):
-    def __init__(self, repository: UserRepository = Depends()):
+    def __init__(self, repository: Annotated[UserRepository, Depends()]):
         super().__init__()
         self.repository = repository
         self.read_schema = UserRead

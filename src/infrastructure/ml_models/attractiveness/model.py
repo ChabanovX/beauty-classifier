@@ -93,6 +93,8 @@ class AttractivenessModel(ModelBase):
 
         prev_epoch_loss: float = 0.0
 
+        mlflow.set_experiment("Training AttractivenessClassifier model")
+
         mlflow.start_run(
             run_name=f"Attractiveness {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )

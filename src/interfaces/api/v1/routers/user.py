@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, status, Depends, Query
 
 from src.application.services import UserService
@@ -24,7 +26,7 @@ user_router = APIRouter(
 @user_router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(
     data: UserCreate,
-    service: UserService = Depends(),
+    service: Annotated[UserService, Depends()],
 ) -> IDMixin:
     id = await service.create(**data.model_dump())
     if not id:
@@ -34,9 +36,9 @@ async def create_user(
 
 @user_router.get("/")
 async def get_users(
+    service: Annotated[UserService, Depends()],
     page: int = Query(1, description="Page number"),
     limit: int = Query(100, description="Items per page"),
-    service: UserService = Depends(),
 ) -> list[UserRead]:
     return await service.find_many(page, limit)
 
@@ -44,7 +46,7 @@ async def get_users(
 @user_router.get("/{id}")
 async def get_user(
     id: int,
-    service: UserService = Depends(),
+    service: Annotated[UserService, Depends()],
 ) -> UserRead:
     user = await service.get(id)
     if not user:
@@ -54,7 +56,7 @@ async def get_user(
 
 @user_router.patch("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def update_user(
-    id: int, user: UserUpdate, service: UserService = Depends()
+    id: int, user: UserUpdate, service: Annotated[UserService, Depends()]
 ) -> None:
     res = await service.update(id, **user.model_dump())
     if res is None:
@@ -66,7 +68,7 @@ async def update_user(
 @user_router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     id: int,
-    service: UserService = Depends(),
+    service: Annotated[UserService, Depends()],
 ) -> None:
     deleted = await service.delete(id)
     if deleted is False:
@@ -76,5 +78,5 @@ async def delete_user(
 
 
 @user_router.get("/me/")
-async def my_id(token: Token = Depends(JWTAuth())) -> IDMixin:
+async def my_id(token: Annotated[Token, Depends(JWTAuth())]) -> IDMixin:
     return IDMixin(id=token.user_id)
