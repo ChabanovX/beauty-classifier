@@ -22,10 +22,10 @@ sync:
 	uv sync
 
 run-migrations:
-	uv run alembic upgrade head
+	uv run --no-sync alembic upgrade head
 
 pull-data:
-	uv run dvc pull
+	uv run --no-sync dvc pull
 
 setup: sync run-migrations pull-data
 	pre-commit install
@@ -36,7 +36,7 @@ run:
 	uv run -m src.interfaces.api.v1
 
 run-prod:
-	uv run -m src.interfaces.api.v1 --no-sync
+	python -m src.interfaces.api.v1
 
 migrate:
 	uv run alembic revision --autogenerate -m "$(m)"

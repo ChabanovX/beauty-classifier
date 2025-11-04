@@ -1,6 +1,5 @@
 import io
 import logging
-import warnings
 from datetime import datetime
 
 import torch
@@ -18,8 +17,6 @@ try:
     from .dataset import get_data_loaders
 except ImportError:
     pass
-
-warnings.simplefilter(action="ignore", category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +48,6 @@ class AttractivenessModel(ModelBase):
         )
         self._model = model
         self._model.to(self._device)
-        self.loaded = False
 
     def _setup_metrics(self, device):
         return nn.ModuleDict(
