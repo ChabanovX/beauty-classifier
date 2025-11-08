@@ -12,9 +12,8 @@ jobs:
     - name: Pull code
       run: |
           git pull
-    - name: Pull models
+    - name: Pull dvc data
       run: |
-          dvc pull models/attractiveness_classifier.pt
-          # other models
+          dvc pull
     - name: Stop and restart containers
       run: docker compose down && docker compose build && docker compose up --remove-orphans -d
