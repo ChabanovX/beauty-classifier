@@ -15,8 +15,6 @@ RUN make sync-prod
 
 COPY . .
 
-RUN make run-migrations pull-data
-
 # RUNTIME
 FROM python:3.13-slim
 
@@ -38,5 +36,3 @@ COPY --from=builder --chown=appuser:appuser /app/src src
 COPY --from=builder --chown=appuser:appuser /app/.env .env
 
 EXPOSE 8000
-
-CMD [".venv/bin/python", "-m", "src.interfaces.api.v1"]

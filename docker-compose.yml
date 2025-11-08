@@ -4,6 +4,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    depends_on:
+      - postgres
+    command: [".venv/bin/python", "-m", "src.interfaces.api.v1"]
   
   postgres:
     image: postgres:latest
