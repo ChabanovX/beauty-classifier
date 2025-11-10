@@ -49,7 +49,7 @@ class CelebrityMatcherModel(ModelBase):
     def __init__(
         self,
         out_features: int = 512,
-        top_k: int = 5,
+        top_k: int = 1,
         classes_file: Optional[str] = None,
     ):
         super().__init__()
