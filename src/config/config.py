@@ -3,6 +3,7 @@ import warnings
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import dotenv
 
 from .logconf import Logging
 
@@ -71,4 +72,5 @@ class Config(BaseSettings):
 
 config = Config()
 
-warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+dotenv.load_dotenv()

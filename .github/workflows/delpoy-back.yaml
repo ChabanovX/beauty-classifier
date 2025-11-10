@@ -6,11 +6,14 @@ on:
 
 jobs:
   deploy:
-    runs-on: ml-vm-runner
+    runs-on: ml-vm
     
     steps:
     - name: Pull code
       run: |
           git pull
+    - name: Pull dvc data
+      run: |
+          dvc pull
     - name: Stop and restart containers
       run: docker compose down && docker compose build && docker compose up --remove-orphans -d

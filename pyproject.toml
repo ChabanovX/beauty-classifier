@@ -26,6 +26,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "torchmetrics>=1.8.2",
     "facenet-pytorch>=2.5.3",
+    "dvc[ssh]>=3.63.0",
 ]
 
 [dependency-groups]
@@ -37,7 +38,6 @@ dev = [
     "seaborn>=0.13.2",
     "dvclive>=3.48.5",
     "torchmetrics>=1.8.2",
-    "dvc[ssh]>=3.63.0",
     "mlflow>=3.4.0",
     "pytest>=8.4.2",
     "pytest-cases>=3.9.1",
@@ -50,6 +50,7 @@ dev = [
     "pre-commit>=4.3.0",
     "psutil>=7.0.0",
     "pynvml>=13.0.1",
+    "asyncclick>=8.3.0.7",
 ]
 
 [tool.ruff.lint.per-file-ignores]

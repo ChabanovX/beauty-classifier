@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src.infrastructure.database.core import db_engine_lifespan
+from src.infrastructure.database import DB
 from src.infrastructure.ml_models import load_models
 from src.interfaces.api.v1.routers import routers
 from src.config import config
@@ -15,12 +15,17 @@ from src.config import config
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_models()
-    async with db_engine_lifespan():
+    async with DB.lifespan():
         yield
 
 
 def create_app(lifespan: AsyncGenerator = lifespan) -> FastAPI:
-    app = FastAPI(lifespan=lifespan)
+    app = FastAPI(
+        lifespan=lifespan,
+        docs_url=None if config.prod else "/docs",
+        redoc_url=None if config.prod else "/redoc",
+        openapi_url=None if config.prod else "/openapi.json",
+    )
 
     app.add_middleware(
         CORSMiddleware,

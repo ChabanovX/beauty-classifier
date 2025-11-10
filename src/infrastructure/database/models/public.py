@@ -3,7 +3,7 @@ from enum import StrEnum
 from sqlalchemy import ForeignKey, LargeBinary, Table, Column, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base, CreatedAtMixin, IDMixin
+from .base import Base, CreatedAtMixin, EntityBase
 
 
 class Role(StrEnum):
@@ -19,7 +19,7 @@ association_table = Table(
 )
 
 
-class User(CreatedAtMixin, IDMixin):
+class User(CreatedAtMixin, EntityBase):
     __tablename__ = "users"
     name: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
     password: Mapped[str] = mapped_column(nullable=False)
@@ -33,7 +33,7 @@ class User(CreatedAtMixin, IDMixin):
     )
 
 
-class Celebrity(CreatedAtMixin, IDMixin):
+class Celebrity(CreatedAtMixin, EntityBase):
     __tablename__ = "celebrities"
     name: Mapped[str] = mapped_column(nullable=False, index=True)
     picture: Mapped[bytes] = mapped_column(nullable=False, deferred=True)
@@ -43,7 +43,7 @@ class Celebrity(CreatedAtMixin, IDMixin):
     )
 
 
-class Inference(CreatedAtMixin, IDMixin):
+class Inference(CreatedAtMixin, EntityBase):
     __tablename__ = "inferences"
     attractiveness: Mapped[float] = mapped_column(nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

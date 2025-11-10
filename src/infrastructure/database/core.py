@@ -1,5 +1,6 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator, ClassVar
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -7,31 +8,45 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
     AsyncEngine,
 )
+from alembic import command as alembic
+from alembic.config import Config as AlembicConfig
 
 from src.config import config
-
-_engine: AsyncEngine | None = None
-
-_async_session: async_sessionmaker | None = None
+from src.utils.decorators import classproperty
 
 
-@asynccontextmanager
-async def db_engine_lifespan():
-    global _engine, _async_session
-    _engine = create_async_engine(
-        config.db.uri,
-        pool_size=config.db.pool_size,
-        pool_timeout=config.db.pool_timeout,
-        pool_pre_ping=True,
-    )
-    _async_session = async_sessionmaker(_engine, expire_on_commit=False)
-    yield _engine
-    await _engine.dispose()
+@dataclass(slots=True)
+class DB:
+    engine: ClassVar[AsyncEngine | None] = None
+    _async_sessionmaker: ClassVar[async_sessionmaker | None] = None
 
+    @classproperty
+    def async_sessionmaker(cls):
+        if cls.engine is None:
+            raise RuntimeError("DB engine not initialized")
+        if cls._async_sessionmaker is None:
+            cls._async_sessionmaker = async_sessionmaker(
+                cls.engine, expire_on_commit=False
+            )
+        return cls._async_sessionmaker
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    if _engine is None or _async_session is None:
-        raise RuntimeError("DB engine not initialized")
-    async with _async_session() as session:
-        async with session.begin():
-            yield session
+    @classmethod
+    @asynccontextmanager
+    async def lifespan(cls):
+        cls.engine = create_async_engine(
+            config.db.uri,
+            pool_size=config.db.pool_size,
+            pool_timeout=config.db.pool_timeout,
+            pool_pre_ping=True,
+        )
+        ab_config = AlembicConfig("alembic.ini")
+        ab_config.set_main_option("sqlalchemy.url", config.db.uri)
+        alembic.upgrade(ab_config, "head")
+        yield cls
+        await cls.engine.dispose()
+
+    @classmethod
+    async def session(cls) -> AsyncGenerator[AsyncSession]:
+        async with cls.async_sessionmaker() as session:
+            async with session.begin():
+                yield session

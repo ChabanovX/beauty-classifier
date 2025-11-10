@@ -1,22 +1,21 @@
 from abc import ABC
-from typing import TypeVar
+from typing import TypeVar, Annotated, get_args
 
 from sqlalchemy import select, delete, update, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from src.infrastructure.database.core import get_session
-from src.infrastructure.database.models.base import IDMixin
+from src.infrastructure.database import DB
+from src.infrastructure.database.models.base import EntityBase
 
-ModelType = TypeVar("ModelType")
+ModelType = TypeVar("ModelType", bound=EntityBase)
 
 
-class CRUDRepository[ModelType: IDMixin](ABC):
-    model: type[ModelType]
-
-    def __init__(self, db: AsyncSession = Depends(get_session)):
+class CRUDRepository[ModelType: EntityBase](ABC):
+    def __init__(self, db: Annotated[AsyncSession, Depends(DB.session)]):
         self.db = db
+        self.model: type[ModelType] = get_args(self.__class__.__orig_bases__[0])[0]
 
     async def get(self, id: int):
         query = select(self.model).where(self.model.id == id)

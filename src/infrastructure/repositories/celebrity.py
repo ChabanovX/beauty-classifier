@@ -5,8 +5,6 @@ from ..database.models import Celebrity
 
 
 class CelebrityRepository(CRUDRepository[Celebrity]):
-    model = Celebrity
-
     async def get_picture(self, id: int) -> bytes:
         query = select(Celebrity.picture).where(Celebrity.id == id)
         result = await self.db.execute(query)
