@@ -34,5 +34,6 @@ COPY --from=builder --chown=appuser:appuser /app/static static
 COPY --from=builder --chown=appuser:appuser /app/logs logs
 COPY --from=builder --chown=appuser:appuser /app/src src
 COPY --from=builder --chown=appuser:appuser /app/.env .env
+COPY --from=builder --chown=appuser:appuser /app/alembic.ini alembic.ini
 
 EXPOSE 8000
