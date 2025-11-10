@@ -4,7 +4,7 @@ import json
 import logging
 import warnings
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -13,6 +13,7 @@ from torchvision import models, transforms
 from PIL import Image
 
 from ..base_model import ModelBase
+from src.interfaces.api.v1.schemas.similarity import SimilarityPrediction
 
 try:
     import mlflow
@@ -331,7 +332,9 @@ class CelebrityMatcherModel(ModelBase):
 
         return final
 
-    def predict(self, image: bytes, top_k: int | None = None) -> List[Dict[str, float]]:
+    def predict(
+        self, image: bytes, top_k: int | None = None
+    ) -> list[SimilarityPrediction]:
         """
         Возвращает top-k [{label, prob}], отсортированные по убыванию вероятности.
         """
@@ -361,7 +364,7 @@ class CelebrityMatcherModel(ModelBase):
             indices = indices.squeeze(0).cpu().tolist()
 
             return [
-                {"label": self.id2label[idx], "prob": float(p)}
+                SimilarityPrediction(self.id2label[idx], float(p))
                 for idx, p in zip(indices, values)
             ]
         except Exception as e:
